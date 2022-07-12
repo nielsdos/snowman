@@ -94,6 +94,7 @@ impl Module for KernelModule {
         match procedure {
             23 | 24 | 30 => 2,
             51 => 6,
+            57 => 10,
             _ => 0,
         }
     }

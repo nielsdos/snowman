@@ -2,7 +2,7 @@ use crate::constants::{WF_80x87, WF_CPU386, WF_ENHANCED, WF_PAGING, WF_PMODE};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::module::Module;
 use crate::registers::Registers;
-use crate::EmulatorError;
+use crate::{debug_print_null_terminated_string, EmulatorError};
 
 pub struct EmulatedKernel {}
 
@@ -72,17 +72,25 @@ impl EmulatedKernel {
         // equal to the original function address.
         let segment_of_function = accessor.number_argument(2)?;
         let offset_of_function = accessor.number_argument(1)?;
-        //println!("{:x}:{:x}", segment_of_function, offset_of_function);
         //let h_instance = accessor.number_argument(0)?;
-        //println!("{:x}", h_instance);
-
         accessor
             .regs_mut()
             .write_gpr_16(Registers::REG_AX, offset_of_function);
         accessor
             .regs_mut()
             .write_gpr_16(Registers::REG_DX, segment_of_function);
+        Ok(())
+    }
 
+    fn get_profile_int(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let default = accessor.number_argument(0)?;
+        let key_name = accessor.pointer_argument(1)?;
+        let app_name = accessor.pointer_argument(3)?;
+        print!("GET PROFILE INT {}", default);
+        debug_print_null_terminated_string(&accessor, key_name);
+        debug_print_null_terminated_string(&accessor, app_name);
+        // TODO
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, default);
         Ok(())
     }
 
@@ -97,6 +105,7 @@ impl EmulatedKernel {
             24 => self.unlock_segment(emulator_accessor),
             30 => self.wait_event(),
             51 => self.make_proc_instance(emulator_accessor),
+            57 => self.get_profile_int(emulator_accessor),
             91 => self.init_task(emulator_accessor),
             132 => self.get_winflags(emulator_accessor),
             nr => {
