@@ -1,4 +1,4 @@
-use crate::constants::{KERNEL_INT_VECTOR, USER_INT_VECTOR};
+use crate::constants::{GDI_INT_VECTOR, KERNEL_INT_VECTOR, KEYBOARD_INT_VECTOR, USER_INT_VECTOR};
 use crate::emulator_error::EmulatorError;
 use crate::memory::SegmentAndOffset;
 use crate::{Memory, Segment};
@@ -120,6 +120,54 @@ impl Module for UserModule {
         match procedure {
             5 | 179 => 2,
             87 => 12,
+            _ => 0,
+        }
+    }
+
+    fn base_module(&self) -> &BaseModule {
+        &self.base_module
+    }
+}
+
+pub struct GdiModule {
+    base_module: BaseModule,
+}
+
+impl GdiModule {
+    pub fn new(flat_address: u32) -> Self {
+        Self {
+            base_module: BaseModule::new(flat_address, GDI_INT_VECTOR),
+        }
+    }
+}
+
+impl Module for GdiModule {
+    fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
+        match procedure {
+            _ => 0,
+        }
+    }
+
+    fn base_module(&self) -> &BaseModule {
+        &self.base_module
+    }
+}
+
+pub struct KeyboardModule {
+    base_module: BaseModule,
+}
+
+impl KeyboardModule {
+    pub fn new(flat_address: u32) -> Self {
+        Self {
+            base_module: BaseModule::new(flat_address, KEYBOARD_INT_VECTOR),
+        }
+    }
+}
+
+impl Module for KeyboardModule {
+    fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
+        match procedure {
             _ => 0,
         }
     }

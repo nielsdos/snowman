@@ -4,8 +4,8 @@ use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
-use crate::module::{KernelModule, Module, UserModule};
-use crate::util::{bool_to_result, u16_from_slice};
+use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
+use crate::util::{bool_to_result, debug_print_null_terminated_string, u16_from_slice};
 use std::collections::HashMap;
 
 mod constants;
@@ -20,13 +20,17 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
+mod emulated_gdi;
+mod emulated_keyboard;
 
 struct MZResult {
     pub ne_header_offset: usize,
 }
 
 fn main() {
-    let mut bytes = std::fs::read("../vms/WINVER.EXE").expect("test file should exist");
+    //let path = "../vms/WINVER.EXE";
+    let path = "../vms/GENERIC.EXE";
+    let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
     println!("{:?}", process_file(&mut executable));
 }
@@ -275,6 +279,7 @@ fn process_module_reference_table(
             offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
         let module_name_length = executable.read_u8(start_offset)?;
         let module_name = executable.slice(start_offset + 1, module_name_length as usize)?;
+        println!("module {} = {}", module_index + 1, String::from_utf8_lossy(module_name));
 
         if module_name == b"KERNEL" {
             module_reference_table
@@ -284,6 +289,16 @@ fn process_module_reference_table(
             module_reference_table
                 .modules
                 .push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
+        } else if module_name == b"GDI" {
+            module_reference_table
+                .modules
+                .push(Box::new(GdiModule::new(0x10 * 0x8000))); // TODO: better address
+        } else if module_name == b"KEYBOARD" {
+            module_reference_table
+                .modules
+                .push(Box::new(KeyboardModule::new(0x10 * 0x9000))); // TODO: better address
+        } else {
+            // TODO
         }
     }
 
@@ -379,6 +394,7 @@ fn perform_relocations(
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
+                    println!("import ordinal {}", import.index_into_module_reference_table);
                     // Relocate kernel system call
                     let module =
                         module_reference_table.module(import.index_into_module_reference_table)?;
@@ -406,7 +422,6 @@ fn perform_relocations(
                         let entry = entry_table
                             .get(ordinal_index_into_entry_table)
                             .ok_or(EmulatorError::OutOfBounds)?;
-                        println!("relocation entry {:?}", entry);
 
                         // TODO: this is hardcoded
                         let segment = if entry.segment_number == 1 {
@@ -416,7 +431,13 @@ fn perform_relocations(
                         };
                         (segment, entry.offset)
                     } else {
-                        todo!()
+                        // TODO: this is hardcoded
+                        let segment = if internal_ref.segment_number == 1 {
+                            0u16
+                        } else {
+                            todo!()
+                        };
+                        (segment, internal_ref.parameter)
                     };
 
                     for &offset in &relocation.locations {
@@ -500,6 +521,7 @@ fn process_file_ne(
         segment_table_segment_count,
         file_alignment_size_shift,
     )?;
+    println!("{:#?}", segment_table);
 
     validate_segment_index_and_offset(&segment_table, cs, ip)?;
     validate_segment_index_and_offset(&segment_table, ss, sp)?;

@@ -1,6 +1,8 @@
 pub const KERNEL_INT_VECTOR: u8 = 0xff;
 pub const USER_INT_VECTOR: u8 = 0xfe;
-pub const LOWEST_SYSCALL_INT_VECTOR: u8 = 0xfe;
+pub const GDI_INT_VECTOR: u8 = 0xfd;
+pub const KEYBOARD_INT_VECTOR: u8 = 0xfc;
+pub const LOWEST_SYSCALL_INT_VECTOR: u8 = 0xfc;
 
 // GETWINFLAGS
 pub const WF_80x87: u16 = 0x400;
