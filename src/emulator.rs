@@ -1,3 +1,4 @@
+use crate::emulated_kernel::EmulatedKernel;
 use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
@@ -5,18 +6,18 @@ use crate::registers::Registers;
 use crate::u16_from_slice;
 use num_traits::PrimInt;
 
-pub struct Emulator<'a> {
-    code: &'a [u8],
+pub struct Emulator {
     regs: Registers,
     memory: Memory,
+    emulated_kernel: EmulatedKernel,
 }
 
-impl<'a> Emulator<'a> {
-    pub fn new(code: &'a [u8], ip: u16) -> Self {
+impl Emulator {
+    pub fn new(memory: Memory, cs: u16, ip: u16, emulated_kernel: EmulatedKernel) -> Self {
         Self {
-            code,
-            regs: Registers::new(ip),
-            memory: Memory::new(),
+            regs: Registers::new(cs, ip),
+            memory,
+            emulated_kernel,
         }
     }
 
@@ -43,6 +44,10 @@ impl<'a> Emulator<'a> {
         self.push_value_16(self.regs.ip)
     }
 
+    fn push_cs(&mut self) -> Result<(), EmulatorError> {
+        self.push_value_16(self.regs.read_segment(Registers::REG_CS))
+    }
+
     fn push_gpr_16(&mut self, register: u8) -> Result<(), EmulatorError> {
         self.push_value_16(self.regs.read_gpr_16(register))
     }
@@ -58,24 +63,23 @@ impl<'a> Emulator<'a> {
     }
 
     fn read_u8_at(&self, offset: usize) -> Result<u8, EmulatorError> {
-        if offset < self.code.len() {
-            Ok(self.code[offset])
-        } else {
-            Err(EmulatorError::OutOfBounds)
-        }
+        // TODO: cast is ugly
+        self.memory.read_8(offset as u32)
     }
 
     fn read_u16_at(&self, offset: usize) -> Result<u16, EmulatorError> {
-        if offset < self.code.len() - 1 {
-            Ok(u16_from_slice(self.code, offset))
-        } else {
-            Err(EmulatorError::OutOfBounds)
-        }
+        // TODO: cast is ugly
+        self.memory.read_16(offset as u32)
+    }
+
+    fn flat_ip(&self) -> usize {
+        //println!("{:x}:{:x}", self.regs.read_segment(Registers::REG_CS), self.regs.ip);
+        self.regs.ip as usize + ((self.regs.read_segment(Registers::REG_CS) as usize) << 4)
     }
 
     pub fn read_ip_u8(&mut self) -> Result<u8, EmulatorError> {
-        let byte = self.read_u8_at(self.regs.ip as usize)?;
-        self.regs.ip += 1;
+        let byte = self.read_u8_at(self.flat_ip())?;
+        self.regs.ip = self.regs.ip.wrapping_add(1);
         Ok(byte)
     }
 
@@ -88,7 +92,7 @@ impl<'a> Emulator<'a> {
     }
 
     pub fn read_ip_u16(&mut self) -> Result<u16, EmulatorError> {
-        let byte = self.read_u16_at(self.regs.ip as usize)?;
+        let byte = self.read_u16_at(self.flat_ip())?;
         self.regs.ip += 2;
         Ok(byte)
     }
@@ -103,24 +107,15 @@ impl<'a> Emulator<'a> {
         }
     }
 
-    pub fn call_with_32b_displacement(&mut self) -> Result<(), EmulatorError> {
+    pub fn call_far_with_32b_displacement(&mut self) -> Result<(), EmulatorError> {
         let address = self.read_ip_u16()?;
         let segment = self.read_ip_u16()?;
 
-        // TODO
-        println!("  call with 32b displacement {:x}:{:x}", segment, address);
+        self.push_cs()?;
+        self.push_ip()?;
 
-        // TODO: hardcoded to inittask rn
-        self.regs.write_gpr_16(Registers::REG_AX, 0x10); // TODO: must be = DS I believe
-        self.regs.write_gpr_16(Registers::REG_BX, 0x1234); // TODO: offset into command line
-        self.regs.write_gpr_16(Registers::REG_CX, 0); // TODO: stack limit
-        self.regs.write_gpr_16(Registers::REG_DX, 0); // TODO: nCmdShow
-        self.regs.write_gpr_16(Registers::REG_SI, 0); // TODO: previous instance handle
-        self.regs.write_gpr_16(Registers::REG_DI, 0xBEEF); // TODO: instance handle
-        self.regs
-            .write_gpr_16(Registers::REG_BP, self.regs.read_gpr_16(Registers::REG_SP));
-        // TODO: segments
-        self.regs.write_segment(Registers::REG_ES, 0x10); // TODO
+        self.regs.write_segment(Registers::REG_CS, segment);
+        self.regs.ip = address;
 
         Ok(())
     }
@@ -308,7 +303,7 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
-    fn call_rel16(&mut self) -> Result<(), EmulatorError> {
+    fn call_near_rel16(&mut self) -> Result<(), EmulatorError> {
         let destination_offset = self.read_ip_u16()? as i16;
         self.push_ip()?;
         self.regs.ip = self.regs.ip.wrapping_add(destination_offset as u16);
@@ -346,20 +341,39 @@ impl<'a> Emulator<'a> {
 
     fn ret_near_with_pop(&mut self) -> Result<(), EmulatorError> {
         let amount = self.read_ip_u16()?;
-        self.regs.ip = self.pop_value_16()?;
+        self.ret_near_without_pop()?;
         self.regs.inc_sp(amount);
+        Ok(())
+    }
+
+    fn ret_far_with_pop(&mut self) -> Result<(), EmulatorError> {
+        let amount = self.read_ip_u16()?;
+        self.ret_far_without_pop()?;
+        self.regs.inc_sp(amount);
+        Ok(())
+    }
+
+    fn ret_far_without_pop(&mut self) -> Result<(), EmulatorError> {
+        self.regs.ip = self.pop_value_16()?;
+        let cs = self.pop_value_16()?;
+        self.regs.write_segment(Registers::REG_CS, cs);
         Ok(())
     }
 
     fn int(&mut self) -> Result<(), EmulatorError> {
         let nr = self.read_ip_u8()?;
-        // TODO
         if nr == 0x21 {
             if self.regs.read_gpr_hi_8(Registers::REG_AH) == 0x4C {
                 println!("Exit with {}", self.regs.read_gpr_lo_8(Registers::REG_AL));
             }
+            Err(EmulatorError::Exit)
+        } else if nr == 0xff {
+            // System call handler
+            self.emulated_kernel.syscall(&mut self.regs);
+            Ok(())
+        } else {
+            Err(EmulatorError::Exit)
         }
-        Err(EmulatorError::Exit)
     }
 
     fn mov_segment(&mut self) -> Result<(), EmulatorError> {
@@ -444,7 +458,9 @@ impl<'a> Emulator<'a> {
     }
 
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
-        match self.read_ip_u8()? {
+        let op = self.read_ip_u8()?;
+        println!("  op: {:x}", op);
+        match op {
             0x0B => self.or_r16(),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x2A => self.sub_r8_rm8(),
@@ -462,7 +478,7 @@ impl<'a> Emulator<'a> {
             0x8A => self.mov_r8_rm8(),
             0x8C => self.mov_segment(),
             0x90 => self.nop(),
-            0x9A => self.call_with_32b_displacement(),
+            0x9A => self.call_far_with_32b_displacement(),
             0xB0 => self.mov_al_imm8(),
             0xB4 => self.mov_ah_imm8(),
             0xB8 => self.mov_ax_imm16(),
@@ -470,19 +486,22 @@ impl<'a> Emulator<'a> {
             0xC2 => self.ret_near_with_pop(),
             0xC3 => self.ret_near_without_pop(),
             0xC7 => self.mov_rm16_imm16(),
+            0xCA => self.ret_far_with_pop(),
+            0xCB => self.ret_far_without_pop(),
             0xCD => self.int(),
             0xEB => self.jmp(),
-            0xE8 => self.call_rel16(),
+            0xE8 => self.call_near_rel16(),
             0xF6 => self.op_0xf6(),
             0xF7 => self.op_0xf7(),
             0xFF => self.op_0xff(),
-            _ => Err(EmulatorError::InvalidOpcode),
+            other => Err(EmulatorError::InvalidOpcode),
         }
     }
 
     pub fn step(&mut self) {
         println!(
-            "Currently at {:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
+            "Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
+            self.regs.read_segment(Registers::REG_CS),
             self.regs.ip,
             self.regs.read_gpr_16(Registers::REG_AX),
             self.regs.read_gpr_16(Registers::REG_BX),

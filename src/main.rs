@@ -1,12 +1,20 @@
+use crate::emulated::EmulatedComponentInformationProvider;
+use crate::emulated_kernel::EmulatedKernel;
 use crate::emulator::Emulator;
+use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
+use crate::memory::Memory;
+use crate::module::EmulatedModule;
 use crate::util::{bool_to_result, u16_from_slice};
 
+mod emulated;
+mod emulated_kernel;
 mod emulator;
 mod emulator_error;
 mod executable;
 mod memory;
 mod mod_rm;
+mod module;
 mod registers;
 mod util;
 
@@ -56,6 +64,7 @@ enum RelocationType {
 #[derive(Debug)]
 struct Relocation {
     relocation_type: RelocationType,
+    locations: Vec<u16>,
     offset_within_segment_from_source_chain: u16,
     source_type: u8,
 }
@@ -106,8 +115,6 @@ fn process_segment_table(
             let mut relocations = Vec::with_capacity(relocation_count as usize);
 
             for relocation_index in 0..relocation_count {
-                println!("relocation index {}", relocation_index);
-
                 let byte_offset = 2 + relocation_index as usize * 8;
 
                 let source_type = bytes.read_u8(byte_offset)?;
@@ -115,12 +122,13 @@ fn process_segment_table(
                 let offset_within_segment_from_source_chain = bytes.read_u16(byte_offset + 2)?;
 
                 let old_cursor = bytes.seek_from_start(logical_sector_offset as usize)?;
+                let mut relocation_locations = Vec::new();
 
                 // Walk the linked list of the offsets
                 let mut offset_cursor = offset_within_segment_from_source_chain;
                 // TODO: avoid loops in the linked list
                 loop {
-                    println!("relocate at {}", offset_cursor);
+                    relocation_locations.push(offset_cursor);
                     let pointer = bytes.read_u16(offset_cursor as usize)?;
 
                     if pointer == 0xffff {
@@ -157,6 +165,7 @@ fn process_segment_table(
                                     procedure_ordinal_number,
                                 },
                             ),
+                            locations: relocation_locations,
                             offset_within_segment_from_source_chain,
                             source_type,
                         });
@@ -212,14 +221,86 @@ fn validate_segment_index_and_offset(
     Ok(())
 }
 
-fn process_module_reference_table(bytes: &Executable, offset_to_module_reference_table: usize, module_reference_count: usize) -> Result<(), ExecutableFormatError> {
+#[derive(Debug)]
+struct ModuleReferenceTable {
+    kernel_module_index: u16,
+}
+
+fn process_module_reference_table(
+    bytes: &Executable,
+    offset_to_module_reference_table: usize,
+    module_reference_count: u16,
+) -> Result<ModuleReferenceTable, ExecutableFormatError> {
     let offset_to_imported_name_table = bytes.read_u16(0x2A)? as usize;
 
+    let mut module_reference_table = ModuleReferenceTable {
+        kernel_module_index: 0,
+    };
+
     for module_index in 0..module_reference_count {
-        let module_name_offset_in_imported_name_table = bytes.read_u16(offset_to_module_reference_table + module_index * 2)?;
-        let start_offset = offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
+        let module_name_offset_in_imported_name_table =
+            bytes.read_u16(offset_to_module_reference_table + (module_index * 2) as usize)?;
+        let start_offset =
+            offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
         let module_name_length = bytes.read_u8(start_offset)?;
-        println!("module {} name: {:?}", module_index, bytes.slice(start_offset + 1, module_name_length as usize)?);
+        let module_name = bytes.slice(start_offset + 1, module_name_length as usize)?;
+
+        if module_name == b"KERNEL" {
+            module_reference_table.kernel_module_index = module_index + 1;
+        }
+    }
+
+    Ok(module_reference_table)
+}
+
+fn perform_relocations(
+    memory: &mut Memory,
+    ip: u32,
+    module_reference_table: &ModuleReferenceTable,
+    code_segment: &Segment,
+    emulated_component_information_provider: &dyn EmulatedComponentInformationProvider,
+    kernel_module: &mut EmulatedModule,
+) -> Result<(), EmulatorError> {
+    if let Some(relocations) = code_segment.relocations.as_ref() {
+        for relocation in relocations {
+            match &relocation.relocation_type {
+                RelocationType::ImportOrdinal(import) => {
+                    if import.index_into_module_reference_table
+                        == module_reference_table.kernel_module_index
+                    {
+                        // Relocate kernel system call
+                        let segment_and_offset = kernel_module.procedure(
+                            memory,
+                            import.procedure_ordinal_number,
+                            emulated_component_information_provider
+                                .argument_bytes_of_procedure(import.procedure_ordinal_number),
+                        )?;
+                        println!(
+                            "kernel relocation for procedure ordinal {} at {:x}:{:x}",
+                            import.procedure_ordinal_number,
+                            segment_and_offset.segment,
+                            segment_and_offset.offset
+                        );
+
+                        // Actually change the memory to perform the relocations
+                        for &offset in &relocation.locations {
+                            let flat_address = ip + offset as u32;
+                            if relocation.source_type == 3 {
+                                memory.write_16(flat_address, segment_and_offset.offset);
+                                memory.write_16(flat_address + 2, segment_and_offset.segment);
+                            } else {
+                                // TODO
+                            }
+                        }
+                    } else {
+                        // TODO
+                    }
+                }
+                _ => {
+                    // TODO
+                }
+            }
+        }
     }
 
     Ok(())
@@ -235,7 +316,7 @@ fn process_file_ne(
     validate_target_operating_system(bytes)?;
 
     let segment_table_segment_count = bytes.read_u16(0x1C)? as usize;
-    let module_reference_count = bytes.read_u16(0x1E)? as usize;
+    let module_reference_count = bytes.read_u16(0x1E)?;
     let offset_to_segment_table = bytes.read_u16(0x22)? as usize;
     let offset_to_module_reference_table = bytes.read_u16(0x28)? as usize;
     let file_alignment_size_shift = {
@@ -247,7 +328,11 @@ fn process_file_ne(
         }
     };
 
-    process_module_reference_table(bytes, offset_to_module_reference_table, module_reference_count)?;
+    let module_reference_table = process_module_reference_table(
+        bytes,
+        offset_to_module_reference_table,
+        module_reference_count,
+    )?;
 
     println!(
         "Expected Windows version: {}.{}",
@@ -269,12 +354,14 @@ fn process_file_ne(
         segment_table_segment_count,
         file_alignment_size_shift,
     )?;
-    println!("{:#?}", segment_table);
 
     validate_segment_index_and_offset(&segment_table, cs, ip)?;
     validate_segment_index_and_offset(&segment_table, ss, sp)?;
 
     bytes.restore_cursor(old_cursor);
+
+    let mut memory = Memory::new();
+    let mut kernel_module = EmulatedModule::new(0x10 * 0x1000); // TODO: choose a better address
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let code_segment = &segment_table[cs as usize - 1]; // TODO: handle 0 segment
@@ -282,7 +369,17 @@ fn process_file_ne(
         code_segment.logical_sector_offset as usize,
         code_segment.length_of_segment_in_file as usize,
     )?;
-    let mut emulator = Emulator::new(code_bytes, ip);
+    memory.copy_from(code_bytes, 0x4000); // TODO: code offset & segment
+    let emulated_kernel = EmulatedKernel::new();
+    perform_relocations(
+        &mut memory,
+        0x4000,
+        &module_reference_table,
+        &code_segment,
+        &emulated_kernel,
+        &mut kernel_module,
+    ); // TODO: also other relocations necessary
+    let mut emulator = Emulator::new(memory, 0, ip + 0x4000, emulated_kernel);
     emulator.run();
 
     // TODO: validate CRC32
