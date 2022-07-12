@@ -533,6 +533,16 @@ impl Emulator {
         Ok(())
     }
 
+    fn write_memory_ds<const N: usize>(&mut self, offset: u16, data: u16) -> Result<(), EmulatorError> {
+        let address = self.regs.flat_address(Registers::REG_DS, offset);
+        self.memory.write::<N>(address, data)
+    }
+
+    fn mov_moffs16_ax(&mut self) -> Result<(), EmulatorError> {
+        let offset = self.read_ip_u16()?;
+        self.write_memory_ds::<16>(offset, self.regs.read_gpr_16(Registers::REG_AX))
+    }
+
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
             0x06 => self.push_segment_16(Registers::REG_ES),
@@ -566,6 +576,7 @@ impl Emulator {
             0x90 => self.nop(),
             0x9A => self.call_far_with_32b_displacement(),
             0xAA => self.stosb(),
+            0xA3 => self.mov_moffs16_ax(),
             0xB0 => self.mov_al_imm8(),
             0xB4 => self.mov_ah_imm8(),
             0xB8 => self.mov_r16_imm16(Registers::REG_AX),

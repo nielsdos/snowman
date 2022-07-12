@@ -59,8 +59,15 @@ impl Registers {
     }
 
     pub fn flat_sp(&self) -> u32 {
-        self.read_gpr_16(Registers::REG_SP) as u32
-            + ((self.read_segment(Registers::REG_SS) as u32) << 4)
+        self.flat_reg(Registers::REG_SS, Registers::REG_SP)
+    }
+
+    pub fn flat_reg(&self, segment: u8, reg: u8) -> u32 {
+        self.flat_address(segment, self.read_gpr_16(reg))
+    }
+
+    pub fn flat_address(&self, segment: u8, offset: u16) -> u32 {
+        offset as u32 + ((self.read_segment(segment) as u32) << 4)
     }
 
     #[inline]
@@ -68,6 +75,7 @@ impl Registers {
         self.flags
     }
 
+    #[inline]
     pub fn set_direction_flag(&mut self, flag: bool) {
         if flag {
             self.flags |= Self::FLAG_DF;
