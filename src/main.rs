@@ -212,6 +212,19 @@ fn validate_segment_index_and_offset(
     Ok(())
 }
 
+fn process_module_reference_table(bytes: &Executable, offset_to_module_reference_table: usize, module_reference_count: usize) -> Result<(), ExecutableFormatError> {
+    let offset_to_imported_name_table = bytes.read_u16(0x2A)? as usize;
+
+    for module_index in 0..module_reference_count {
+        let module_name_offset_in_imported_name_table = bytes.read_u16(offset_to_module_reference_table + module_index * 2)?;
+        let start_offset = offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
+        let module_name_length = bytes.read_u8(start_offset)?;
+        println!("module {} name: {:?}", module_index, bytes.slice(start_offset + 1, module_name_length as usize)?);
+    }
+
+    Ok(())
+}
+
 fn process_file_ne(
     bytes: &mut Executable,
     ne_header_offset: usize,
@@ -233,6 +246,8 @@ fn process_file_ne(
             shift as usize
         }
     };
+
+    process_module_reference_table(bytes, offset_to_module_reference_table, module_reference_count)?;
 
     println!(
         "Expected Windows version: {}.{}",
