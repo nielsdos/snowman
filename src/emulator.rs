@@ -199,12 +199,11 @@ impl Emulator {
             1 => match mod_rm.rm() {
                 6 => {
                     let disp8 = self.read_ip_i8()?;
-                    let address = self
+                    let offset = self
                         .regs
                         .read_gpr_16(Registers::REG_BP)
                         .wrapping_add(disp8 as u16);
-                    // TODO: keep in mind data segment(?)
-                    self.memory.write::<N>(address as u32, data)
+                    self.write_memory_ds::<N>(offset, data)
                 }
 
                 _ => {
@@ -221,9 +220,8 @@ impl Emulator {
             2 => match mod_rm.rm() {
                 7 => {
                     let disp16 = self.read_ip_u16()?;
-                    let address = self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(disp16);
-                    // TODO: keep in mind data segment(?)
-                    self.memory.write::<N>(address as u32, data)
+                    let offset = self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(disp16);
+                    self.write_memory_ds::<N>(offset, data)
                 }
                 _ => {
                     println!(
