@@ -33,7 +33,6 @@ impl Emulator {
     }
 
     fn push_value_16(&mut self, data: u16) -> Result<(), EmulatorError> {
-        println!("push {:x}", data);
         // TODO: keep in mind the stack segment, because this is wrong now
         self.regs.dec_sp(2);
         self.memory
@@ -46,7 +45,6 @@ impl Emulator {
         let data = self
             .memory
             .read_16(self.regs.read_gpr_16(Registers::REG_SP) as u32)?;
-        println!("pop {:x}", data);
         self.regs.inc_sp(2);
         Ok(data)
     }
@@ -471,9 +469,7 @@ impl Emulator {
     }
 
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
-        let op = self.read_ip_u8()?;
-        println!("  op: {:x}", op);
-        match op {
+        match self.read_ip_u8()? {
             0x0B => self.or_r16(),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x2A => self.sub_r8_rm8(),
@@ -507,12 +503,15 @@ impl Emulator {
             0xF6 => self.op_0xf6(),
             0xF7 => self.op_0xf7(),
             0xFF => self.op_0xff(),
-            _ => Err(EmulatorError::InvalidOpcode),
+            nr => {
+                println!("unknown opcode {:x}", nr);
+                Err(EmulatorError::InvalidOpcode)
+            }
         }
     }
 
     pub fn step(&mut self) {
-        println!(
+        /*println!(
             "Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
             self.regs.read_segment(Registers::REG_CS),
             self.regs.ip,
@@ -523,7 +522,7 @@ impl Emulator {
             self.regs.read_gpr_16(Registers::REG_SP),
             self.regs.read_gpr_16(Registers::REG_BP),
             self.regs.flags(),
-        );
+        );*/
         self.read_opcode().expect("todo");
     }
 

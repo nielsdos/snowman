@@ -20,7 +20,10 @@ impl EmulatedKernel {
 
     fn get_winflags(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         println!("GET WINFLAGS");
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, WF_80x87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED);
+        accessor.regs_mut().write_gpr_16(
+            Registers::REG_AX,
+            WF_80x87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED,
+        );
         accessor.regs_mut().write_gpr_16(Registers::REG_DX, 0);
         Ok(())
     }
@@ -73,8 +76,12 @@ impl EmulatedKernel {
         //let h_instance = accessor.number_argument(0)?;
         //println!("{:x}", h_instance);
 
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, offset_of_function);
-        accessor.regs_mut().write_gpr_16(Registers::REG_DX, segment_of_function);
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, offset_of_function);
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_DX, segment_of_function);
 
         Ok(())
     }

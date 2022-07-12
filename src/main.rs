@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_user::EmulatedUser;
 use crate::emulator::Emulator;
@@ -7,6 +6,7 @@ use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
 use crate::module::{KernelModule, Module, UserModule};
 use crate::util::{bool_to_result, u16_from_slice};
+use std::collections::HashMap;
 
 mod constants;
 mod emulated_kernel;
@@ -166,12 +166,10 @@ fn process_segment_table(
                         let segment_number = executable.read_u8(byte_offset + 4)?;
                         let parameter = executable.read_u16(byte_offset + 6)?;
                         relocations.push(Relocation {
-                            relocation_type: RelocationType::InternalRef(
-                                InternalRefRelocation {
-                                    segment_number,
-                                    parameter,
-                                },
-                            ),
+                            relocation_type: RelocationType::InternalRef(InternalRefRelocation {
+                                segment_number,
+                                parameter,
+                            }),
                             locations: relocation_locations,
                             offset_within_segment_from_source_chain,
                             source_type,
@@ -308,7 +306,11 @@ impl EntryTable {
     }
 }
 
-fn process_entry_table(executable: &mut Executable, offset_to_entry_table: usize, entry_table_bytes: usize) -> Result<EntryTable, ExecutableFormatError> {
+fn process_entry_table(
+    executable: &mut Executable,
+    offset_to_entry_table: usize,
+    entry_table_bytes: usize,
+) -> Result<EntryTable, ExecutableFormatError> {
     let old_cursor = executable.seek_from_here(offset_to_entry_table)?;
 
     let mut entry_table = EntryTable {
@@ -337,12 +339,18 @@ fn process_entry_table(executable: &mut Executable, offset_to_entry_table: usize
                 let magic = executable.read_u16(offset + 1)?;
                 let segment_number = executable.read_u8(offset + 3)?;
                 let offset_within_segment_to_entry_point = executable.read_u16(offset + 4)?;
-                println!("movable segment {:x} {:x} {:x}", magic, segment_number, offset_within_segment_to_entry_point);
+                println!(
+                    "movable segment {:x} {:x} {:x}",
+                    magic, segment_number, offset_within_segment_to_entry_point
+                );
 
-                entry_table.entries.insert(ordinal_index, EntryTableEntry {
-                    segment_number,
-                    offset: offset_within_segment_to_entry_point,
-                });
+                entry_table.entries.insert(
+                    ordinal_index,
+                    EntryTableEntry {
+                        segment_number,
+                        offset: offset_within_segment_to_entry_point,
+                    },
+                );
 
                 offset += 6;
             } else {
@@ -395,11 +403,15 @@ fn perform_relocations(
 
                     let (segment, offset_within_segment) = if internal_ref.segment_number == 0xff {
                         let ordinal_index_into_entry_table = internal_ref.parameter;
-                        let entry = entry_table.get(ordinal_index_into_entry_table).ok_or(EmulatorError::OutOfBounds)?;
+                        let entry = entry_table
+                            .get(ordinal_index_into_entry_table)
+                            .ok_or(EmulatorError::OutOfBounds)?;
                         println!("relocation entry {:?}", entry);
 
                         // TODO: this is hardcoded
-                        let segment = if entry.segment_number == 1 { 0u16 } else {
+                        let segment = if entry.segment_number == 1 {
+                            0u16
+                        } else {
                             todo!()
                         };
                         (segment, entry.offset)
@@ -418,7 +430,10 @@ fn perform_relocations(
                             // TODO: invalid?
                         }
 
-                        println!("relocate at {:x}, {}, {:x}:{:x}", flat_address, relocation.source_type, segment, offset_within_segment);
+                        println!(
+                            "relocate at {:x}, {}, {:x}:{:x}",
+                            flat_address, relocation.source_type, segment, offset_within_segment
+                        );
                     }
                 }
                 _ => {
@@ -509,15 +524,28 @@ fn process_file_ne(
         .copy_from(code_bytes, 0x4000)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
     memory
-        .copy_from(data_bytes, 0x123*0x10)
+        .copy_from(data_bytes, 0x123 * 0x10)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: data offset & segment
     let emulated_kernel = EmulatedKernel::new();
     let emulated_user = EmulatedUser::new();
-    perform_relocations(&mut memory, 0x4000, &module_reference_table, &entry_table, code_segment)
-        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    perform_relocations(
+        &mut memory,
+        0x4000,
+        &module_reference_table,
+        &entry_table,
+        code_segment,
+    )
+    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
-    let mut emulator = Emulator::new(memory, 0x123, 0, ip + 0x4000, emulated_kernel, emulated_user);
+    let mut emulator = Emulator::new(
+        memory,
+        0x123,
+        0,
+        ip + 0x4000,
+        emulated_kernel,
+        emulated_user,
+    );
     emulator.run();
 
     // TODO: validate CRC32

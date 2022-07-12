@@ -50,10 +50,13 @@ impl BaseModule {
         self.write_syscall_dispatch_byte(memory, 0xCD)?;
         self.write_syscall_dispatch_byte(memory, self.int_vector)?;
         // return far
-        //self.write_syscall_dispatch_byte(memory, 0xCB)?;
-        self.write_syscall_dispatch_byte(memory, 0xCA)?;
-        self.write_syscall_dispatch_byte(memory, argument_bytes as u8)?;
-        self.write_syscall_dispatch_byte(memory, (argument_bytes >> 8) as u8)?;
+        if argument_bytes == 0 {
+            self.write_syscall_dispatch_byte(memory, 0xCB)?;
+        } else {
+            self.write_syscall_dispatch_byte(memory, 0xCA)?;
+            self.write_syscall_dispatch_byte(memory, argument_bytes as u8)?;
+            self.write_syscall_dispatch_byte(memory, (argument_bytes >> 8) as u8)?;
+        }
 
         Ok(offset)
     }
@@ -116,6 +119,7 @@ impl Module for UserModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
             5 | 179 => 2,
+            87 => 12,
             _ => 0,
         }
     }

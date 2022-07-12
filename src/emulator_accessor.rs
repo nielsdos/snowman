@@ -33,7 +33,11 @@ impl<'a> EmulatorAccessor<'a> {
         let offset = self.number_argument(nr)?;
         println!("{:x}:{:x}", segment, offset);
         let flat_address = ((segment as u32) << 4) + (offset as u32);
-        println!("flat address: {:x} {:x}", flat_address, self.memory.read_8(flat_address)?);
+        println!(
+            "flat address: {:x} {:x}",
+            flat_address,
+            self.memory.read_8(flat_address)?
+        );
         Ok(flat_address)
     }
 }

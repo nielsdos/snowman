@@ -1,7 +1,7 @@
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
-use crate::EmulatorError;
 use crate::util::debug_print_null_terminated_string;
+use crate::EmulatorError;
 
 pub struct EmulatedUser {}
 
@@ -10,8 +10,21 @@ impl EmulatedUser {
         Self {}
     }
 
-    fn init_app(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+    fn init_app(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         println!("INIT APP {:x}", accessor.number_argument(0)?);
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        Ok(())
+    }
+
+    fn dialog_box(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let dialog_func = accessor.pointer_argument(0)?;
+        let hwnd_parent = accessor.number_argument(2)?;
+        let template = accessor.pointer_argument(3)?;
+        let h_instance = accessor.number_argument(5)?;
+        println!(
+            "DIALOG BOX {:x} {:x} {:x} {:x}",
+            h_instance, template, hwnd_parent, dialog_func
+        );
         // TODO
         Ok(())
     }
@@ -57,6 +70,7 @@ impl EmulatedUser {
     ) -> Result<(), EmulatorError> {
         match nr {
             5 => self.init_app(emulator_accessor),
+            87 => self.dialog_box(emulator_accessor),
             179 => self.get_system_metrics(emulator_accessor),
             420 => self.wsprintf(emulator_accessor),
             nr => {
