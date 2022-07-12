@@ -1,7 +1,7 @@
 use crate::emulator_accessor::EmulatorAccessor;
+use crate::module::Module;
 use crate::registers::Registers;
 use crate::EmulatorError;
-use crate::module::Module;
 
 pub struct EmulatedKernel {}
 

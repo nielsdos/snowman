@@ -1,12 +1,12 @@
+use crate::constants::{KERNEL_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR, USER_INT_VECTOR};
 use crate::emulated_kernel::EmulatedKernel;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;
-use crate::{EmulatedUser, u16_from_slice};
+use crate::{u16_from_slice, EmulatedUser};
 use num_traits::PrimInt;
-use crate::constants::{KERNEL_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR, USER_INT_VECTOR};
 
 pub struct Emulator {
     regs: Registers,
@@ -16,7 +16,13 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(memory: Memory, cs: u16, ip: u16, emulated_kernel: EmulatedKernel, emulated_user: EmulatedUser) -> Self {
+    pub fn new(
+        memory: Memory,
+        cs: u16,
+        ip: u16,
+        emulated_kernel: EmulatedKernel,
+        emulated_user: EmulatedUser,
+    ) -> Self {
         Self {
             regs: Registers::new(cs, ip),
             memory,

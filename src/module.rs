@@ -1,8 +1,8 @@
-use std::cell::Cell;
+use crate::constants::{KERNEL_INT_VECTOR, USER_INT_VECTOR};
 use crate::emulator_error::EmulatorError;
 use crate::memory::SegmentAndOffset;
 use crate::{Memory, Segment};
-use crate::constants::{KERNEL_INT_VECTOR, USER_INT_VECTOR};
+use std::cell::Cell;
 
 pub struct BaseModule {
     flat_address: Cell<u32>,

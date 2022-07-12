@@ -7,6 +7,7 @@ use crate::memory::Memory;
 use crate::module::{KernelModule, Module, UserModule};
 use crate::util::{bool_to_result, u16_from_slice};
 
+mod constants;
 mod emulated_kernel;
 mod emulated_user;
 mod emulator;
@@ -18,7 +19,6 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
-mod constants;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -121,7 +121,8 @@ fn process_segment_table(
 
                 let source_type = executable.read_u8(byte_offset)?;
                 let flags = executable.read_u8(byte_offset + 1)?;
-                let offset_within_segment_from_source_chain = executable.read_u16(byte_offset + 2)?;
+                let offset_within_segment_from_source_chain =
+                    executable.read_u16(byte_offset + 2)?;
 
                 let old_cursor = executable.seek_from_start(logical_sector_offset as usize)?;
                 let mut relocation_locations = Vec::new();
@@ -158,7 +159,8 @@ fn process_segment_table(
                     }
                     // Import ordinal
                     1 => {
-                        let index_into_module_reference_table = executable.read_u16(byte_offset + 4)?;
+                        let index_into_module_reference_table =
+                            executable.read_u16(byte_offset + 4)?;
                         let procedure_ordinal_number = executable.read_u16(byte_offset + 6)?;
                         relocations.push(Relocation {
                             relocation_type: RelocationType::ImportOrdinal(
@@ -257,9 +259,13 @@ fn process_module_reference_table(
         let module_name = executable.slice(start_offset + 1, module_name_length as usize)?;
 
         if module_name == b"KERNEL" {
-            module_reference_table.modules.push(Box::new(KernelModule::new(0x10 * 0x1000))); // TODO: better address
+            module_reference_table
+                .modules
+                .push(Box::new(KernelModule::new(0x10 * 0x1000))); // TODO: better address
         } else if module_name == b"USER" {
-            module_reference_table.modules.push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
+            module_reference_table
+                .modules
+                .push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
         }
     }
 
@@ -277,7 +283,8 @@ fn perform_relocations(
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
                     // Relocate kernel system call
-                    let module = module_reference_table.module(import.index_into_module_reference_table)?;
+                    let module =
+                        module_reference_table.module(import.index_into_module_reference_table)?;
                     let segment_and_offset = module.base_module().procedure(
                         memory,
                         import.procedure_ordinal_number,
@@ -372,13 +379,8 @@ fn process_file_ne(
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
     let emulated_kernel = EmulatedKernel::new();
     let emulated_user = EmulatedUser::new();
-    perform_relocations(
-        &mut memory,
-        0x4000,
-        &module_reference_table,
-        code_segment,
-    )
-    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    perform_relocations(&mut memory, 0x4000, &module_reference_table, code_segment)
+        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let mut emulator = Emulator::new(memory, 0, ip + 0x4000, emulated_kernel, emulated_user);
