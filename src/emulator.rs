@@ -18,13 +18,14 @@ pub struct Emulator {
 impl Emulator {
     pub fn new(
         memory: Memory,
+        ds: u16,
         cs: u16,
         ip: u16,
         emulated_kernel: EmulatedKernel,
         emulated_user: EmulatedUser,
     ) -> Self {
         Self {
-            regs: Registers::new(cs, ip),
+            regs: Registers::new(ds, cs, ip),
             memory,
             emulated_kernel,
             emulated_user,
@@ -375,7 +376,7 @@ impl Emulator {
         } else if nr >= LOWEST_SYSCALL_INT_VECTOR {
             // System call handler
             let function = self.regs.read_gpr_16(Registers::REG_AX);
-            let accessor = EmulatorAccessor::new(&self.memory, &mut self.regs);
+            let accessor = EmulatorAccessor::new(&mut self.memory, &mut self.regs);
             if nr == KERNEL_INT_VECTOR {
                 self.emulated_kernel.syscall(function, accessor)
             } else if nr == USER_INT_VECTOR {

@@ -1,6 +1,7 @@
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::EmulatorError;
+use crate::util::debug_print_null_terminated_string;
 
 pub struct EmulatedUser {}
 
@@ -29,8 +30,23 @@ impl EmulatedUser {
     }
 
     fn wsprintf(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let pointer_argument = accessor.pointer_argument(0)?;
-        println!("WSPRINTF [TODO]");
+        let mut output_buffer_ptr = accessor.pointer_argument(0)?;
+        let mut format_string_ptr = accessor.pointer_argument(2)?;
+        let format_string_ptr_start = format_string_ptr;
+        print!("WSPRINTF FORMAT: ");
+        debug_print_null_terminated_string(&accessor, format_string_ptr);
+        // TODO: implement actual sprintf, now it just copies
+        loop {
+            let data = accessor.memory().read_8(format_string_ptr).unwrap_or(0);
+            accessor.memory_mut().write_8(output_buffer_ptr, data);
+            if data == 0 {
+                break;
+            }
+            format_string_ptr += 1;
+            output_buffer_ptr += 1;
+        }
+        print!("WSPRINTF OUTPUT: ");
+        debug_print_null_terminated_string(&accessor, format_string_ptr_start);
         Ok(())
     }
 

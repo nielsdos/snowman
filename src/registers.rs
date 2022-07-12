@@ -41,12 +41,12 @@ impl Registers {
     pub const REG_FS: u8 = 4;
     pub const REG_GS: u8 = 5;
 
-    pub fn new(cs: u16, ip: u16) -> Self {
+    pub fn new(ds: u16, cs: u16, ip: u16) -> Self {
         let mut gpr = [0; 8];
         gpr[Self::REG_SP as usize] = 1024; // TODO
         let mut segments = [0; 8];
         segments[Self::REG_CS as usize] = cs;
-        segments[Self::REG_DS as usize] = 0x123; // TODO
+        segments[Self::REG_DS as usize] = ds;
         Self {
             ip,
             gpr,

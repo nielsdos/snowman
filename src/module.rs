@@ -90,6 +90,7 @@ impl Module for KernelModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
             23 | 24 | 30 => 2,
+            51 => 6,
             _ => 0,
         }
     }

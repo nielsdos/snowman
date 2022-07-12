@@ -63,6 +63,22 @@ impl EmulatedKernel {
         // TODO?
     }
 
+    fn make_proc_instance(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        // As we don't share segments in the same way as a 16-bit Windows might do,
+        // we don't need to set up any thunks. We just need to make sure the return value is
+        // equal to the original function address.
+        let segment_of_function = accessor.number_argument(2)?;
+        let offset_of_function = accessor.number_argument(1)?;
+        //println!("{:x}:{:x}", segment_of_function, offset_of_function);
+        //let h_instance = accessor.number_argument(0)?;
+        //println!("{:x}", h_instance);
+
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, offset_of_function);
+        accessor.regs_mut().write_gpr_16(Registers::REG_DX, segment_of_function);
+
+        Ok(())
+    }
+
     pub fn syscall(
         &self,
         nr: u16,
@@ -73,6 +89,7 @@ impl EmulatedKernel {
             23 => self.lock_segment(emulator_accessor),
             24 => self.unlock_segment(emulator_accessor),
             30 => self.wait_event(),
+            51 => self.make_proc_instance(emulator_accessor),
             91 => self.init_task(emulator_accessor),
             132 => self.get_winflags(emulator_accessor),
             nr => {
