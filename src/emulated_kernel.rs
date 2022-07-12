@@ -1,7 +1,7 @@
-use crate::emulated::EmulatedComponentInformationProvider;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::EmulatorError;
+use crate::module::Module;
 
 pub struct EmulatedKernel {}
 
@@ -61,15 +61,6 @@ impl EmulatedKernel {
             nr => {
                 todo!("unimplemented syscall {}", nr)
             }
-        }
-    }
-}
-
-impl EmulatedComponentInformationProvider for EmulatedKernel {
-    fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
-        match procedure {
-            23 | 24 | 30 => 2,
-            _ => 0,
         }
     }
 }

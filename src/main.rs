@@ -1,14 +1,12 @@
-use crate::emulated::EmulatedComponentInformationProvider;
 use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_user::EmulatedUser;
 use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
-use crate::module::EmulatedModule;
+use crate::module::{KernelModule, Module, UserModule};
 use crate::util::{bool_to_result, u16_from_slice};
 
-mod emulated;
 mod emulated_kernel;
 mod emulated_user;
 mod emulator;
@@ -20,6 +18,7 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
+mod constants;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -224,9 +223,18 @@ fn validate_segment_index_and_offset(
     Ok(())
 }
 
-#[derive(Debug)]
 struct ModuleReferenceTable {
-    kernel_module_index: u16,
+    modules: Vec<Box<dyn Module>>,
+}
+
+impl ModuleReferenceTable {
+    pub fn module(&self, index: u16) -> Result<&dyn Module, EmulatorError> {
+        if index >= 1 && (index as usize) <= self.modules.len() {
+            Ok(&*self.modules[index as usize - 1])
+        } else {
+            Err(EmulatorError::OutOfBounds)
+        }
+    }
 }
 
 fn process_module_reference_table(
@@ -237,7 +245,7 @@ fn process_module_reference_table(
     let offset_to_imported_name_table = executable.read_u16(0x2A)? as usize;
 
     let mut module_reference_table = ModuleReferenceTable {
-        kernel_module_index: 0,
+        modules: Vec::with_capacity(module_reference_count as usize),
     };
 
     for module_index in 0..module_reference_count {
@@ -249,7 +257,9 @@ fn process_module_reference_table(
         let module_name = executable.slice(start_offset + 1, module_name_length as usize)?;
 
         if module_name == b"KERNEL" {
-            module_reference_table.kernel_module_index = module_index + 1;
+            module_reference_table.modules.push(Box::new(KernelModule::new(0x10 * 0x1000))); // TODO: better address
+        } else if module_name == b"USER" {
+            module_reference_table.modules.push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
         }
     }
 
@@ -261,42 +271,29 @@ fn perform_relocations(
     ip: u32,
     module_reference_table: &ModuleReferenceTable,
     code_segment: &Segment,
-    emulated_component_information_provider: &dyn EmulatedComponentInformationProvider,
-    kernel_module: &mut EmulatedModule,
 ) -> Result<(), EmulatorError> {
     if let Some(relocations) = code_segment.relocations.as_ref() {
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
-                    if import.index_into_module_reference_table
-                        == module_reference_table.kernel_module_index
-                    {
-                        // Relocate kernel system call
-                        let segment_and_offset = kernel_module.procedure(
-                            memory,
-                            import.procedure_ordinal_number,
-                            emulated_component_information_provider
-                                .argument_bytes_of_procedure(import.procedure_ordinal_number),
-                        )?;
-                        println!(
-                            "kernel relocation for procedure ordinal {} at {:x}:{:x}",
-                            import.procedure_ordinal_number,
-                            segment_and_offset.segment,
-                            segment_and_offset.offset
-                        );
+                    // Relocate kernel system call
+                    let module = module_reference_table.module(import.index_into_module_reference_table)?;
+                    let segment_and_offset = module.base_module().procedure(
+                        memory,
+                        import.procedure_ordinal_number,
+                        module.argument_bytes_of_procedure(import.procedure_ordinal_number),
+                    )?;
 
-                        // Actually change the memory to perform the relocations
-                        for &offset in &relocation.locations {
-                            let flat_address = ip + offset as u32;
-                            if relocation.source_type == 3 {
-                                memory.write_16(flat_address, segment_and_offset.offset)?;
-                                memory.write_16(flat_address + 2, segment_and_offset.segment)?;
-                            } else {
-                                // TODO
-                            }
+                    // Actually change the memory to perform the relocations
+                    for &offset in &relocation.locations {
+                        let flat_address = ip + offset as u32;
+                        println!("relocate at {:x}", flat_address);
+                        if relocation.source_type == 3 {
+                            memory.write_16(flat_address, segment_and_offset.offset)?;
+                            memory.write_16(flat_address + 2, segment_and_offset.segment)?;
+                        } else {
+                            // TODO
                         }
-                    } else {
-                        // TODO
                     }
                 }
                 _ => {
@@ -364,7 +361,6 @@ fn process_file_ne(
     executable.restore_cursor(old_cursor);
 
     let mut memory = Memory::new();
-    let mut kernel_module = EmulatedModule::new(0x10 * 0x1000); // TODO: choose a better address
 
     let code_segment = &segment_table[cs as usize - 1]; // TODO: handle 0 segment
     let code_bytes = executable.slice(
@@ -381,8 +377,6 @@ fn process_file_ne(
         0x4000,
         &module_reference_table,
         code_segment,
-        &emulated_kernel,
-        &mut kernel_module,
     )
     .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 

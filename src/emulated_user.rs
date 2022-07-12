@@ -1,4 +1,3 @@
-use crate::emulated::EmulatedComponentInformationProvider;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::EmulatorError;
@@ -23,10 +22,3 @@ impl EmulatedUser {
     }
 }
 
-impl EmulatedComponentInformationProvider for EmulatedUser {
-    fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
-        match procedure {
-            _ => 0,
-        }
-    }
-}

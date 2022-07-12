@@ -6,6 +6,7 @@ use crate::mod_rm::ModRM;
 use crate::registers::Registers;
 use crate::{EmulatedUser, u16_from_slice};
 use num_traits::PrimInt;
+use crate::constants::{KERNEL_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR, USER_INT_VECTOR};
 
 pub struct Emulator {
     regs: Registers,
@@ -365,11 +366,17 @@ impl Emulator {
                 println!("Exit with {}", self.regs.read_gpr_lo_8(Registers::REG_AL));
             }
             Err(EmulatorError::Exit)
-        } else if nr == 0xff {
+        } else if nr >= LOWEST_SYSCALL_INT_VECTOR {
             // System call handler
-            let nr = self.regs.read_gpr_16(Registers::REG_AX);
+            let function = self.regs.read_gpr_16(Registers::REG_AX);
             let accessor = EmulatorAccessor::new(&self.memory, &mut self.regs);
-            self.emulated_kernel.syscall(nr, accessor)
+            if nr == KERNEL_INT_VECTOR {
+                self.emulated_kernel.syscall(function, accessor)
+            } else if nr == USER_INT_VECTOR {
+                self.emulated_user.syscall(function, accessor)
+            } else {
+                Err(EmulatorError::Exit)
+            }
         } else {
             Err(EmulatorError::Exit)
         }
