@@ -1,4 +1,5 @@
 use crate::emulated_kernel::EmulatedKernel;
+use crate::emulator_accessor::EmulatorAccessor;
 use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
@@ -72,13 +73,8 @@ impl Emulator {
         self.memory.read_16(offset as u32)
     }
 
-    fn flat_ip(&self) -> usize {
-        //println!("{:x}:{:x}", self.regs.read_segment(Registers::REG_CS), self.regs.ip);
-        self.regs.ip as usize + ((self.regs.read_segment(Registers::REG_CS) as usize) << 4)
-    }
-
     pub fn read_ip_u8(&mut self) -> Result<u8, EmulatorError> {
-        let byte = self.read_u8_at(self.flat_ip())?;
+        let byte = self.read_u8_at(self.regs.flat_ip())?;
         self.regs.ip = self.regs.ip.wrapping_add(1);
         Ok(byte)
     }
@@ -92,7 +88,7 @@ impl Emulator {
     }
 
     pub fn read_ip_u16(&mut self) -> Result<u16, EmulatorError> {
-        let byte = self.read_u16_at(self.flat_ip())?;
+        let byte = self.read_u16_at(self.regs.flat_ip())?;
         self.regs.ip += 2;
         Ok(byte)
     }
@@ -369,7 +365,9 @@ impl Emulator {
             Err(EmulatorError::Exit)
         } else if nr == 0xff {
             // System call handler
-            self.emulated_kernel.syscall(&mut self.regs);
+            let nr = self.regs.read_gpr_16(Registers::REG_AX);
+            let accessor = EmulatorAccessor::new(&self.memory, &mut self.regs);
+            self.emulated_kernel.syscall(nr, accessor);
             Ok(())
         } else {
             Err(EmulatorError::Exit)

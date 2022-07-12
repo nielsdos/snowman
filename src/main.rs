@@ -10,6 +10,7 @@ use crate::util::{bool_to_result, u16_from_slice};
 mod emulated;
 mod emulated_kernel;
 mod emulator;
+mod emulator_accessor;
 mod emulator_error;
 mod executable;
 mod memory;

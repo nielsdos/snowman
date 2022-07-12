@@ -1,5 +1,7 @@
 use crate::emulated::EmulatedComponentInformationProvider;
+use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
+use crate::EmulatorError;
 
 pub struct EmulatedKernel {}
 
@@ -8,8 +10,10 @@ impl EmulatedKernel {
         Self {}
     }
 
-    fn init_task(&self, regs: &mut Registers) {
+    fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         println!("INIT TASK");
+
+        let mut regs = accessor.regs_mut();
 
         // TODO: hardcoded to inittask rn
         regs.write_gpr_16(Registers::REG_AX, 0x10); // TODO: must be = DS I believe
@@ -21,41 +25,43 @@ impl EmulatedKernel {
         regs.write_gpr_16(Registers::REG_BP, regs.read_gpr_16(Registers::REG_SP));
         // TODO: segments
         regs.write_segment(Registers::REG_ES, 0x10); // TODO
+
+        Ok(())
     }
 
-    fn lock_segment(&self, regs: &mut Registers) {
-        // TODO: read arguments from stack somehow
-        println!("LOCK SEGMENT");
+    fn lock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        println!("LOCK SEGMENT {:x}", accessor.argument(0)?);
+        // TODO
+        Ok(())
     }
 
-    fn unlock_segment(&self) {
-        println!("UNLOCK SEGMENT");
-        // TODO?
+    fn unlock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        println!("UNLOCK SEGMENT {:x}", accessor.argument(0)?);
+        // TODO
+        Ok(())
     }
 
-    fn wait_event(&self) {
+    fn wait_event(&self) -> Result<(), EmulatorError> {
         println!("WAIT EVENT");
+
+        Ok(())
         // TODO?
     }
 
-    pub fn syscall(&self, regs: &mut Registers) {
-        match regs.read_gpr_16(Registers::REG_AX) {
-            23 => {
-                self.lock_segment(regs);
-            }
-            24 => {
-                self.unlock_segment();
-            }
-            30 => {
-                self.wait_event();
-            }
-            91 => {
-                self.init_task(regs);
-            }
+    pub fn syscall(
+        &self,
+        nr: u16,
+        emulator_accessor: EmulatorAccessor,
+    ) -> Result<(), EmulatorError> {
+        match nr {
+            23 => self.lock_segment(emulator_accessor),
+            24 => self.unlock_segment(emulator_accessor),
+            30 => self.wait_event(),
+            91 => self.init_task(emulator_accessor),
             nr => {
                 // TODO
                 println!("unimplemented system call {}", nr);
-                todo!();
+                todo!()
             }
         }
     }
