@@ -11,16 +11,16 @@ impl EmulatedUser {
     }
 
     fn init_app(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("INIT APP {:x}", accessor.number_argument(0)?);
+        println!("INIT APP {:x}", accessor.word_argument(0)?);
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
     }
 
     fn dialog_box(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let dialog_func = accessor.pointer_argument(0)?;
-        let hwnd_parent = accessor.number_argument(2)?;
+        let hwnd_parent = accessor.word_argument(2)?;
         let template = accessor.pointer_argument(3)?;
-        let h_instance = accessor.number_argument(5)?;
+        let h_instance = accessor.word_argument(5)?;
         println!(
             "DIALOG BOX {:x} {:x} {:x} {:x}",
             h_instance, template, hwnd_parent, dialog_func
@@ -30,10 +30,10 @@ impl EmulatedUser {
     }
 
     fn load_string(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let buffer_max = accessor.number_argument(0)?;
+        let buffer_max = accessor.word_argument(0)?;
         let buffer = accessor.pointer_argument(1)?;
-        let uid = accessor.number_argument(3)?;
-        let h_instance = accessor.number_argument(4)?;
+        let uid = accessor.word_argument(3)?;
+        let h_instance = accessor.word_argument(4)?;
         println!(
             "LOAD STRING {:x} {:x} {:x} {:x}",
             h_instance, uid, buffer, buffer_max
@@ -43,7 +43,7 @@ impl EmulatedUser {
     }
 
     fn get_system_metrics(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let metric = accessor.number_argument(0)?;
+        let metric = accessor.word_argument(0)?;
         println!("GET SYSTEM METRICS {:x}", metric);
         // 0x16 = 1 if debug version is installed, 0 otherwise
         if metric == 0x16 {
@@ -62,15 +62,7 @@ impl EmulatedUser {
         print!("WSPRINTF FORMAT: ");
         debug_print_null_terminated_string(&accessor, format_string_ptr);
         // TODO: implement actual sprintf, now it just copies
-        loop {
-            let data = accessor.memory().read_8(format_string_ptr).unwrap_or(0);
-            accessor.memory_mut().write_8(output_buffer_ptr, data);
-            if data == 0 {
-                break;
-            }
-            format_string_ptr += 1;
-            output_buffer_ptr += 1;
-        }
+        accessor.copy_string(format_string_ptr, output_buffer_ptr)?;
         print!("WSPRINTF OUTPUT: ");
         debug_print_null_terminated_string(&accessor, format_string_ptr_start);
         Ok(())

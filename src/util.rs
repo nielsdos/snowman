@@ -16,6 +16,14 @@ pub fn u16_from_slice(bytes: &[u8], offset: usize) -> u16 {
     )
 }
 
+pub fn u32_from_slice(bytes: &[u8], offset: usize) -> u32 {
+    u32::from_le_bytes(
+        bytes[offset..offset + 4]
+            .try_into()
+            .expect("slice is big enough"),
+    )
+}
+
 pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut address: u32) {
     loop {
         let data = accessor.memory().read_8(address).unwrap_or(0);

@@ -48,13 +48,13 @@ impl EmulatedKernel {
     }
 
     fn lock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("LOCK SEGMENT {:x}", accessor.number_argument(0)?);
+        println!("LOCK SEGMENT {:x}", accessor.word_argument(0)?);
         // TODO
         Ok(())
     }
 
     fn unlock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("UNLOCK SEGMENT {:x}", accessor.number_argument(0)?);
+        println!("UNLOCK SEGMENT {:x}", accessor.word_argument(0)?);
         // TODO
         Ok(())
     }
@@ -70,8 +70,8 @@ impl EmulatedKernel {
         // As we don't share segments in the same way as a 16-bit Windows might do,
         // we don't need to set up any thunks. We just need to make sure the return value is
         // equal to the original function address.
-        let segment_of_function = accessor.number_argument(2)?;
-        let offset_of_function = accessor.number_argument(1)?;
+        let segment_of_function = accessor.word_argument(2)?;
+        let offset_of_function = accessor.word_argument(1)?;
         //let h_instance = accessor.number_argument(0)?;
         accessor
             .regs_mut()
@@ -83,7 +83,7 @@ impl EmulatedKernel {
     }
 
     fn get_profile_int(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let default = accessor.number_argument(0)?;
+        let default = accessor.word_argument(0)?;
         let key_name = accessor.pointer_argument(1)?;
         let app_name = accessor.pointer_argument(3)?;
         print!("GET PROFILE INT {}", default);
@@ -91,6 +91,20 @@ impl EmulatedKernel {
         debug_print_null_terminated_string(&accessor, app_name);
         // TODO
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, default);
+        Ok(())
+    }
+
+    fn get_profile_string(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let size = accessor.dword_argument(0)?;
+        let returned_string = accessor.pointer_argument(2)?;
+        let default = accessor.pointer_argument(4)?;
+        let key_name = accessor.pointer_argument(6)?;
+        let app_name = accessor.pointer_argument(8)?;
+        print!("GET PROFILE STRING {}", size);
+        // TODO: honor size etc etc
+        let number_of_bytes_copied = accessor.copy_string(default, returned_string)?;
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, (number_of_bytes_copied >> 16) as u16);
+        accessor.regs_mut().write_gpr_16(Registers::REG_DX, number_of_bytes_copied as u16);
         Ok(())
     }
 
@@ -106,6 +120,7 @@ impl EmulatedKernel {
             30 => self.wait_event(),
             51 => self.make_proc_instance(emulator_accessor),
             57 => self.get_profile_int(emulator_accessor),
+            58 => self.get_profile_string(emulator_accessor),
             91 => self.init_task(emulator_accessor),
             132 => self.get_winflags(emulator_accessor),
             nr => {

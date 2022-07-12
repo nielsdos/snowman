@@ -1,5 +1,6 @@
 use crate::emulator_error::EmulatorError;
 use crate::{u16_from_slice, Segment};
+use crate::util::u32_from_slice;
 
 pub struct Memory {
     bytes: Box<[u8]>,
@@ -46,6 +47,11 @@ impl Memory {
         } else {
             unreachable!()
         }
+    }
+
+    pub fn read_32(&self, address: u32) -> Result<u32, EmulatorError> {
+        // TODO: bounds check
+        Ok(u32_from_slice(&self.bytes, address as usize))
     }
 
     pub fn read_16(&self, address: u32) -> Result<u16, EmulatorError> {

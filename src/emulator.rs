@@ -92,10 +92,6 @@ impl Emulator {
         Ok(byte)
     }
 
-    pub fn unread_ip_u8(&mut self) {
-        self.regs.ip = self.regs.ip.wrapping_sub(1);
-    }
-
     pub fn read_ip_i8(&mut self) -> Result<i8, EmulatorError> {
         self.read_ip_u8().map(|data| data as i8)
     }
@@ -118,6 +114,16 @@ impl Emulator {
         } else {
             Err(EmulatorError::OutOfBounds)
         }
+    }
+
+    fn write_memory_ds<const N: usize>(&mut self, offset: u16, data: u16) -> Result<(), EmulatorError> {
+        let address = self.regs.flat_address(Registers::REG_DS, offset);
+        self.memory.write::<N>(address, data)
+    }
+
+    fn read_memory_ds<const N: usize>(&mut self, offset: u16) -> Result<u16, EmulatorError> {
+        let address = self.regs.flat_address(Registers::REG_DS, offset);
+        self.memory.read::<N>(address)
     }
 
     pub fn call_far_with_32b_displacement(&mut self) -> Result<(), EmulatorError> {
@@ -299,17 +305,9 @@ impl Emulator {
         Ok(())
     }
 
-    fn jz_jnz(&mut self, expected_to_jump: bool) -> Result<(), EmulatorError> {
+    fn jcc(&mut self, condition: bool) -> Result<(), EmulatorError> {
         let destination_offset = self.read_ip_i8()?;
-        if self.regs.flag_zero() == expected_to_jump {
-            self.regs.ip = self.regs.ip.wrapping_add(destination_offset as u16);
-        }
-        Ok(())
-    }
-
-    fn jb(&mut self) -> Result<(), EmulatorError> {
-        let destination_offset = self.read_ip_i8()?;
-        if self.regs.flag_borrow() {
+        if condition {
             self.regs.ip = self.regs.ip.wrapping_add(destination_offset as u16);
         }
         Ok(())
@@ -439,8 +437,9 @@ impl Emulator {
         );
         match mod_rm.register_destination() {
             0 => {
+                let old_ip = self.regs.ip;
                 let data = self.read_mod_rm_16(mod_rm)?;
-                self.unread_ip_u8(); // Because src = dest for MOD/RM
+                self.regs.ip = old_ip; // Because src = dest for MOD/RM
                 let result = data.wrapping_add(1);
                 self.regs.handle_arithmetic_result_u16(result);
                 self.write_mod_rm_16(mod_rm, result);
@@ -483,7 +482,25 @@ impl Emulator {
         Ok(())
     }
 
-    fn sub_rn_rmn<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+    fn cmp_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm()?;
+        let result = self
+            .regs
+            .read_gpr::<N>(mod_rm.register_destination())
+            .wrapping_sub(self.read_mod_rm::<N>(mod_rm)?);
+        self.regs.handle_arithmetic_result_u_generic::<N>(result);
+        Ok(())
+    }
+
+    fn cmp_r8_rm8(&mut self) -> Result<(), EmulatorError> {
+        self.cmp_r_rm::<8>()
+    }
+
+    fn cmp_r16_rm16(&mut self) -> Result<(), EmulatorError> {
+        self.cmp_r_rm::<16>()
+    }
+
+    fn sub_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm()?;
         let result = self
             .regs
@@ -496,11 +513,32 @@ impl Emulator {
     }
 
     fn sub_r8_rm8(&mut self) -> Result<(), EmulatorError> {
-        self.sub_rn_rmn::<8>()
+        self.sub_r_rm::<8>()
     }
 
     fn sub_r16_rm16(&mut self) -> Result<(), EmulatorError> {
-        self.sub_rn_rmn::<16>()
+        self.sub_r_rm::<16>()
+    }
+
+    fn add_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm()?;
+        let old_ip = self.regs.ip;
+        let result = self
+            .regs
+            .read_gpr::<N>(mod_rm.register_destination())
+            .wrapping_add(self.read_mod_rm::<N>(mod_rm)?);
+        self.regs.ip = old_ip; // Because src = dest for MOD/RM
+        self.write_mod_rm::<N>(mod_rm, result)?;
+        self.regs.handle_arithmetic_result_u_generic::<N>(result);
+        Ok(())
+    }
+
+    fn add_rm8_r8(&mut self) -> Result<(), EmulatorError> {
+        self.add_rm_r::<8>()
+    }
+
+    fn add_rm16_r16(&mut self) -> Result<(), EmulatorError> {
+        self.add_rm_r::<16>()
     }
 
     fn nop(&self) -> Result<(), EmulatorError> {
@@ -531,18 +569,26 @@ impl Emulator {
         Ok(())
     }
 
-    fn write_memory_ds<const N: usize>(&mut self, offset: u16, data: u16) -> Result<(), EmulatorError> {
-        let address = self.regs.flat_address(Registers::REG_DS, offset);
-        self.memory.write::<N>(address, data)
-    }
-
     fn mov_moffs16_ax(&mut self) -> Result<(), EmulatorError> {
         let offset = self.read_ip_u16()?;
         self.write_memory_ds::<16>(offset, self.regs.read_gpr_16(Registers::REG_AX))
     }
 
+    fn mov_ax_moffs16(&mut self) -> Result<(), EmulatorError> {
+        let offset = self.read_ip_u16()?;
+        let data = self.read_memory_ds::<16>(offset)?;
+        self.regs.write_gpr_16(Registers::REG_AX, data);
+        Ok(())
+    }
+
+    fn mov_moffs8_al(&mut self) -> Result<(), EmulatorError> {
+        let offset = self.read_ip_u16()?;
+        self.write_memory_ds::<8>(offset, self.regs.read_gpr_lo_8(Registers::REG_AL) as u16)
+    }
+
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
+            0x01 => self.add_rm16_r16(),
             0x06 => self.push_segment_16(Registers::REG_ES),
             0x07 => self.pop_segment_16(Registers::REG_ES),
             0x0B => self.or_r16(),
@@ -550,6 +596,7 @@ impl Emulator {
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x2A => self.sub_r8_rm8(),
             0x2B => self.sub_r16_rm16(),
+            0x3B => self.cmp_r16_rm16(),
             0x32 => self.xor_r_generic::<8>(),
             0x33 => self.xor_r_generic::<16>(),
             0x50 => self.push_gpr_16(Registers::REG_AX),
@@ -562,9 +609,11 @@ impl Emulator {
             0x57 => self.pop_gpr_16(Registers::REG_DI),
             0x58 => self.pop_gpr_16(Registers::REG_AX),
             0x5D => self.pop_gpr_16(Registers::REG_BP),
-            0x72 => self.jb(),
-            0x74 => self.jz_jnz(true),
-            0x75 => self.jz_jnz(false),
+            0x5E => self.pop_gpr_16(Registers::REG_SI),
+            0x72 => self.jcc(self.regs.flag_carry()),
+            0x73 => self.jcc(!self.regs.flag_carry()),
+            0x74 => self.jcc(self.regs.flag_zero()),
+            0x75 => self.jcc(!self.regs.flag_zero()),
             0x83 => self.op_0x83(),
             0x8B => self.mov_r16_rm16(),
             0x89 => self.mov_rm16_r16(),
@@ -574,6 +623,8 @@ impl Emulator {
             0x90 => self.nop(),
             0x9A => self.call_far_with_32b_displacement(),
             0xAA => self.stosb(),
+            0xA1 => self.mov_ax_moffs16(),
+            0xA2 => self.mov_moffs8_al(),
             0xA3 => self.mov_moffs16_ax(),
             0xB0 => self.mov_al_imm8(),
             0xB4 => self.mov_ah_imm8(),

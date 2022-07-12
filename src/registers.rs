@@ -232,7 +232,7 @@ impl Registers {
         (self.flags & Self::FLAG_ZF) > 0
     }
 
-    pub fn flag_borrow(&self) -> bool {
+    pub fn flag_carry(&self) -> bool {
         (self.flags & Self::FLAG_CF) > 0
     }
 }

@@ -95,6 +95,7 @@ impl Module for KernelModule {
             23 | 24 | 30 => 2,
             51 => 6,
             57 => 10,
+            58 => 20,
             _ => 0,
         }
     }
