@@ -4,21 +4,23 @@ use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;
-use crate::u16_from_slice;
+use crate::{EmulatedUser, u16_from_slice};
 use num_traits::PrimInt;
 
 pub struct Emulator {
     regs: Registers,
     memory: Memory,
     emulated_kernel: EmulatedKernel,
+    emulated_user: EmulatedUser,
 }
 
 impl Emulator {
-    pub fn new(memory: Memory, cs: u16, ip: u16, emulated_kernel: EmulatedKernel) -> Self {
+    pub fn new(memory: Memory, cs: u16, ip: u16, emulated_kernel: EmulatedKernel, emulated_user: EmulatedUser) -> Self {
         Self {
             regs: Registers::new(cs, ip),
             memory,
             emulated_kernel,
+            emulated_user,
         }
     }
 

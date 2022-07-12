@@ -1,5 +1,6 @@
 use crate::emulated::EmulatedComponentInformationProvider;
 use crate::emulated_kernel::EmulatedKernel;
+use crate::emulated_user::EmulatedUser;
 use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
@@ -9,6 +10,7 @@ use crate::util::{bool_to_result, u16_from_slice};
 
 mod emulated;
 mod emulated_kernel;
+mod emulated_user;
 mod emulator;
 mod emulator_accessor;
 mod emulator_error;
@@ -29,22 +31,22 @@ fn main() {
     println!("{:?}", process_file(&mut executable));
 }
 
-fn process_file_mz(bytes: &Executable) -> Result<MZResult, ExecutableFormatError> {
-    bytes.validate_magic_id(0, b"MZ")?;
+fn process_file_mz(executable: &Executable) -> Result<MZResult, ExecutableFormatError> {
+    executable.validate_magic_id(0, b"MZ")?;
     // TODO: check MZ checksum
-    let ne_header_offset = bytes.read_u16(0x3C)? as usize;
+    let ne_header_offset = executable.read_u16(0x3C)? as usize;
     Ok(MZResult { ne_header_offset })
 }
 
-fn validate_application_flags(bytes: &Executable) -> Result<(), ExecutableFormatError> {
+fn validate_application_flags(executable: &Executable) -> Result<(), ExecutableFormatError> {
     bool_to_result(
-        (bytes.read_u8(0x0D)? & 0b11101000) == 0,
+        (executable.read_u8(0x0D)? & 0b11101000) == 0,
         ExecutableFormatError::ApplicationFlags,
     )
 }
 
-fn validate_target_operating_system(bytes: &Executable) -> Result<(), ExecutableFormatError> {
-    let byte = bytes.read_u8(0x36)?;
+fn validate_target_operating_system(executable: &Executable) -> Result<(), ExecutableFormatError> {
+    let byte = executable.read_u8(0x36)?;
     bool_to_result(
         byte == 0 || byte == 2 || byte == 4,
         ExecutableFormatError::OperatingSystem,
@@ -81,12 +83,12 @@ struct Segment {
 type SegmentTable = Vec<Segment>;
 
 fn process_segment_table(
-    bytes: &mut Executable,
+    executable: &mut Executable,
     offset_to_segment_table: usize,
     segment_count: usize,
     file_alignment_size_shift: usize,
 ) -> Result<SegmentTable, ExecutableFormatError> {
-    let segment_table_cursor = bytes.seek_from_here(offset_to_segment_table)?;
+    let segment_table_cursor = executable.seek_from_here(offset_to_segment_table)?;
 
     let mut segments = Vec::with_capacity(segment_count);
 
@@ -102,27 +104,27 @@ fn process_segment_table(
         };
 
         let logical_sector_offset =
-            (bytes.read_u16(byte_offset)? as u32) << file_alignment_size_shift;
-        let length_of_segment_in_file = map_zero_to_64k(bytes.read_u16(byte_offset + 2)?);
-        let flags = bytes.read_u16(byte_offset + 4)? as u32;
+            (executable.read_u16(byte_offset)? as u32) << file_alignment_size_shift;
+        let length_of_segment_in_file = map_zero_to_64k(executable.read_u16(byte_offset + 2)?);
+        let flags = executable.read_u16(byte_offset + 4)? as u32;
 
         // Read relocation data
         let relocations = if (flags & 0x100) == 0x100 {
-            let relocation_old_cursor = bytes.seek_from_start(
+            let relocation_old_cursor = executable.seek_from_start(
                 logical_sector_offset as usize + length_of_segment_in_file as usize,
             )?;
-            let relocation_count = bytes.read_u16(0)?;
+            let relocation_count = executable.read_u16(0)?;
 
             let mut relocations = Vec::with_capacity(relocation_count as usize);
 
             for relocation_index in 0..relocation_count {
                 let byte_offset = 2 + relocation_index as usize * 8;
 
-                let source_type = bytes.read_u8(byte_offset)?;
-                let flags = bytes.read_u8(byte_offset + 1)?;
-                let offset_within_segment_from_source_chain = bytes.read_u16(byte_offset + 2)?;
+                let source_type = executable.read_u8(byte_offset)?;
+                let flags = executable.read_u8(byte_offset + 1)?;
+                let offset_within_segment_from_source_chain = executable.read_u16(byte_offset + 2)?;
 
-                let old_cursor = bytes.seek_from_start(logical_sector_offset as usize)?;
+                let old_cursor = executable.seek_from_start(logical_sector_offset as usize)?;
                 let mut relocation_locations = Vec::new();
 
                 // Walk the linked list of the offsets
@@ -130,7 +132,7 @@ fn process_segment_table(
                 // TODO: avoid loops in the linked list
                 loop {
                     relocation_locations.push(offset_cursor);
-                    let pointer = bytes.read_u16(offset_cursor as usize)?;
+                    let pointer = executable.read_u16(offset_cursor as usize)?;
 
                     if pointer == 0xffff {
                         break;
@@ -148,7 +150,7 @@ fn process_segment_table(
                     }
                 }
 
-                bytes.restore_cursor(old_cursor);
+                executable.restore_cursor(old_cursor);
 
                 match flags & 3 {
                     // Internal ref
@@ -157,8 +159,8 @@ fn process_segment_table(
                     }
                     // Import ordinal
                     1 => {
-                        let index_into_module_reference_table = bytes.read_u16(byte_offset + 4)?;
-                        let procedure_ordinal_number = bytes.read_u16(byte_offset + 6)?;
+                        let index_into_module_reference_table = executable.read_u16(byte_offset + 4)?;
+                        let procedure_ordinal_number = executable.read_u16(byte_offset + 6)?;
                         relocations.push(Relocation {
                             relocation_type: RelocationType::ImportOrdinal(
                                 ImportOrdinalRelocation {
@@ -183,7 +185,7 @@ fn process_segment_table(
                 }
             }
 
-            bytes.restore_cursor(relocation_old_cursor);
+            executable.restore_cursor(relocation_old_cursor);
 
             Some(relocations)
         } else {
@@ -193,12 +195,12 @@ fn process_segment_table(
         segments.push(Segment {
             logical_sector_offset,
             length_of_segment_in_file,
-            minimum_allocation_size: map_zero_to_64k(bytes.read_u16(byte_offset + 6)?),
+            minimum_allocation_size: map_zero_to_64k(executable.read_u16(byte_offset + 6)?),
             relocations,
         });
     }
 
-    bytes.restore_cursor(segment_table_cursor);
+    executable.restore_cursor(segment_table_cursor);
 
     Ok(segments)
 }
@@ -228,11 +230,11 @@ struct ModuleReferenceTable {
 }
 
 fn process_module_reference_table(
-    bytes: &Executable,
+    executable: &Executable,
     offset_to_module_reference_table: usize,
     module_reference_count: u16,
 ) -> Result<ModuleReferenceTable, ExecutableFormatError> {
-    let offset_to_imported_name_table = bytes.read_u16(0x2A)? as usize;
+    let offset_to_imported_name_table = executable.read_u16(0x2A)? as usize;
 
     let mut module_reference_table = ModuleReferenceTable {
         kernel_module_index: 0,
@@ -240,11 +242,11 @@ fn process_module_reference_table(
 
     for module_index in 0..module_reference_count {
         let module_name_offset_in_imported_name_table =
-            bytes.read_u16(offset_to_module_reference_table + (module_index * 2) as usize)?;
+            executable.read_u16(offset_to_module_reference_table + (module_index * 2) as usize)?;
         let start_offset =
             offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
-        let module_name_length = bytes.read_u8(start_offset)?;
-        let module_name = bytes.slice(start_offset + 1, module_name_length as usize)?;
+        let module_name_length = executable.read_u8(start_offset)?;
+        let module_name = executable.slice(start_offset + 1, module_name_length as usize)?;
 
         if module_name == b"KERNEL" {
             module_reference_table.kernel_module_index = module_index + 1;
@@ -308,20 +310,20 @@ fn perform_relocations(
 }
 
 fn process_file_ne(
-    bytes: &mut Executable,
+    executable: &mut Executable,
     ne_header_offset: usize,
 ) -> Result<(), ExecutableFormatError> {
-    let old_cursor = bytes.seek_from_start(ne_header_offset)?;
-    bytes.validate_magic_id(0, b"NE")?;
-    validate_application_flags(bytes)?;
-    validate_target_operating_system(bytes)?;
+    let old_cursor = executable.seek_from_start(ne_header_offset)?;
+    executable.validate_magic_id(0, b"NE")?;
+    validate_application_flags(executable)?;
+    validate_target_operating_system(executable)?;
 
-    let segment_table_segment_count = bytes.read_u16(0x1C)? as usize;
-    let module_reference_count = bytes.read_u16(0x1E)?;
-    let offset_to_segment_table = bytes.read_u16(0x22)? as usize;
-    let offset_to_module_reference_table = bytes.read_u16(0x28)? as usize;
+    let segment_table_segment_count = executable.read_u16(0x1C)? as usize;
+    let module_reference_count = executable.read_u16(0x1E)?;
+    let offset_to_segment_table = executable.read_u16(0x22)? as usize;
+    let offset_to_module_reference_table = executable.read_u16(0x28)? as usize;
     let file_alignment_size_shift = {
-        let shift = bytes.read_u16(0x32)?;
+        let shift = executable.read_u16(0x32)?;
         if shift == 0 {
             9
         } else {
@@ -330,27 +332,27 @@ fn process_file_ne(
     };
 
     let module_reference_table = process_module_reference_table(
-        bytes,
+        executable,
         offset_to_module_reference_table,
         module_reference_count,
     )?;
 
     println!(
         "Expected Windows version: {}.{}",
-        bytes.read_u8(0x3F)?,
-        bytes.read_u8(0x3E)?
+        executable.read_u8(0x3F)?,
+        executable.read_u8(0x3E)?
     );
 
-    let cs = bytes.read_u16(0x16)?;
-    let ip = bytes.read_u16(0x14)?;
-    let ss = bytes.read_u16(0x1A)?;
-    let sp = bytes.read_u16(0x18)?;
+    let cs = executable.read_u16(0x16)?;
+    let ip = executable.read_u16(0x14)?;
+    let ss = executable.read_u16(0x1A)?;
+    let sp = executable.read_u16(0x18)?;
 
     println!("CS:IP data: {:x} {:x}", cs, ip);
     println!("SS:SP data: {:x} {:x}", ss, sp);
 
     let segment_table = process_segment_table(
-        bytes,
+        executable,
         offset_to_segment_table,
         segment_table_segment_count,
         file_alignment_size_shift,
@@ -359,14 +361,13 @@ fn process_file_ne(
     validate_segment_index_and_offset(&segment_table, cs, ip)?;
     validate_segment_index_and_offset(&segment_table, ss, sp)?;
 
-    bytes.restore_cursor(old_cursor);
+    executable.restore_cursor(old_cursor);
 
     let mut memory = Memory::new();
     let mut kernel_module = EmulatedModule::new(0x10 * 0x1000); // TODO: choose a better address
 
-    // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let code_segment = &segment_table[cs as usize - 1]; // TODO: handle 0 segment
-    let code_bytes = bytes.slice(
+    let code_bytes = executable.slice(
         code_segment.logical_sector_offset as usize,
         code_segment.length_of_segment_in_file as usize,
     )?;
@@ -374,6 +375,7 @@ fn process_file_ne(
         .copy_from(code_bytes, 0x4000)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
     let emulated_kernel = EmulatedKernel::new();
+    let emulated_user = EmulatedUser::new();
     perform_relocations(
         &mut memory,
         0x4000,
@@ -383,15 +385,16 @@ fn process_file_ne(
         &mut kernel_module,
     )
     .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
-    let mut emulator = Emulator::new(memory, 0, ip + 0x4000, emulated_kernel);
+
+    // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
+    let mut emulator = Emulator::new(memory, 0, ip + 0x4000, emulated_kernel, emulated_user);
     emulator.run();
 
     // TODO: validate CRC32
     Ok(())
 }
 
-// TODO: rename "bytes"
-fn process_file(bytes: &mut Executable) -> Result<(), ExecutableFormatError> {
-    let mz_result = process_file_mz(bytes)?;
-    process_file_ne(bytes, mz_result.ne_header_offset)
+fn process_file(executable: &mut Executable) -> Result<(), ExecutableFormatError> {
+    let mz_result = process_file_mz(executable)?;
+    process_file_ne(executable, mz_result.ne_header_offset)
 }
