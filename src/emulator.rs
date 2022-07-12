@@ -133,36 +133,43 @@ impl Emulator {
         Ok(())
     }
 
-    fn read_mod_rm<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
+    fn calculate_mod_rm_address<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
+        // TODO: can we use this in writing mod rm too?
         match mod_rm.addressing_mode() {
             0 => match mod_rm.rm() {
                 6 => {
-                    let disp16 = self.read_ip_u16()?;
-                    // TODO: keep segment in mind
-                    self.memory.read::<N>(disp16 as u32)
+                    self.read_ip_u16()
                 }
                 _ => {
                     assert!(false);
                     Ok(0)
                 }
             },
+            1 => match mod_rm.rm() {
+                6 => {
+                    // [bp + disp8]
+                    Ok(self
+                        .regs
+                        .read_gpr_16(Registers::REG_BP)
+                        .wrapping_add(self.read_ip_i8()? as u16))
+                }
+                _ => unreachable!(),
+            },
             2 => {
                 assert!(false);
                 Ok(0)
             }
-            1 => match mod_rm.rm() {
-                // TODO
-                6 => {
-                    // [bp + disp8]
-                    let address = self
-                        .regs
-                        .read_gpr_16(Registers::REG_BP)
-                        .wrapping_add(self.read_ip_i8()? as u16);
-                    // TODO: keep in mind segment ig
-                    self.memory.read::<N>(address as u32)
-                }
-                _ => unreachable!(),
-            },
+            _ => Err(EmulatorError::InvalidOpcode)
+        }
+    }
+
+    fn read_mod_rm<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
+        match mod_rm.addressing_mode() {
+            0 | 1 | 2 => {
+                let address = self.calculate_mod_rm_address::<N>(mod_rm)?;
+                // TODO: keep segment in mind
+                self.memory.read::<N>(address as u32)
+            }
             3 => Ok(self.regs.read_gpr::<N>(mod_rm.rm())),
             _ => unreachable!(),
         }
@@ -519,20 +526,29 @@ impl Emulator {
         Ok(())
     }
 
+    fn lea(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm()?;
+        let data = self.calculate_mod_rm_address::<16>(mod_rm)?;
+        self.regs.write_gpr_16(mod_rm.register_destination(), data);
+        Ok(())
+    }
+
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
             0x06 => self.push_segment_16(Registers::REG_ES),
             0x07 => self.pop_segment_16(Registers::REG_ES),
             0x0B => self.or_r16(),
+            0x16 => self.push_segment_16(Registers::REG_SS),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x2A => self.sub_r8_rm8(),
             0x2B => self.sub_r16_rm16(),
             0x32 => self.xor_r_generic::<8>(),
             0x33 => self.xor_r_generic::<16>(),
             0x50 => self.push_gpr_16(Registers::REG_AX),
+            0x51 => self.push_gpr_16(Registers::REG_CX),
             0x52 => self.push_gpr_16(Registers::REG_DX),
             0x53 => self.push_gpr_16(Registers::REG_BX),
-            0x54 => self.push_gpr_16(Registers::REG_CX),
+            0x54 => self.push_gpr_16(Registers::REG_SP),
             0x55 => self.push_gpr_16(Registers::REG_BP),
             0x56 => self.pop_gpr_16(Registers::REG_SI),
             0x57 => self.pop_gpr_16(Registers::REG_DI),
@@ -546,6 +562,7 @@ impl Emulator {
             0x89 => self.mov_rm16_r16(),
             0x8A => self.mov_r8_rm8(),
             0x8C => self.mov_segment(),
+            0x8D => self.lea(),
             0x90 => self.nop(),
             0x9A => self.call_far_with_32b_displacement(),
             0xAA => self.stosb(),
