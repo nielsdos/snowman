@@ -29,7 +29,7 @@ struct MZResult {
 
 fn main() {
     //let path = "../vms/WINVER.EXE";
-    let path = "../vms/GENERIC.EXE";
+    let path = "../vms/CLOCK.EXE";
     let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
     println!("{:?}", process_file(&mut executable));

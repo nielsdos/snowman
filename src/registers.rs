@@ -1,5 +1,3 @@
-use num_traits::PrimInt;
-
 pub struct Registers {
     pub ip: u16,
     gpr: [u16; 8],
@@ -168,14 +166,15 @@ impl Registers {
         }
     }
 
-    pub fn handle_bitwise_result(&mut self, result: u16) {
+    pub fn handle_bitwise_result_u_generic<const N: usize>(&mut self, result: u16) {
         // Clear OF & CF, and the flags we can set here
         self.flags &=
             !(Self::FLAG_CF | Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF);
         // Set SF, ZF, PF flags according to result
+        let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
         if result == 0 {
             self.flags |= Self::FLAG_ZF | Self::FLAG_PF;
-        } else if result & (1 << 15) > 0 {
+        } else if result & highest_bit_flag > 0 {
             self.flags |= Self::FLAG_SF;
             if (result.count_ones() & 1) == 0 {
                 self.flags |= Self::FLAG_PF;
@@ -183,7 +182,15 @@ impl Registers {
         }
     }
 
-    pub fn handle_arithmetic_result_u_generic<const N: usize, R: PrimInt>(&mut self, result: u16) {
+    pub fn handle_bitwise_result_u16(&mut self, result: u16) {
+        self.handle_bitwise_result_u_generic::<16>(result)
+    }
+
+    pub fn handle_bitwise_result_u8(&mut self, result: u16) {
+        self.handle_bitwise_result_u_generic::<8>(result)
+    }
+
+    pub fn handle_arithmetic_result_u_generic<const N: usize>(&mut self, result: u16) {
         // TODO: support CF, OF, AF
 
         // Clear the flags we can set here
@@ -194,29 +201,30 @@ impl Registers {
             | Self::FLAG_PF
             | Self::FLAG_AF);
         // Set flags according to result
+        let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
         if result == 0 {
             self.flags |= Self::FLAG_ZF | Self::FLAG_PF;
-        } else {
-            let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
-
-            if result & highest_bit_flag > 0 {
-                self.flags |= Self::FLAG_SF;
-                if (result.count_ones() & 1) == 0 {
-                    self.flags |= Self::FLAG_PF;
-                }
+        } else if result & highest_bit_flag > 0 {
+            self.flags |= Self::FLAG_SF;
+            if (result.count_ones() & 1) == 0 {
+                self.flags |= Self::FLAG_PF;
             }
         }
     }
 
     pub fn handle_arithmetic_result_u16(&mut self, result: u16) {
-        self.handle_arithmetic_result_u_generic::<16, u16>(result)
+        self.handle_arithmetic_result_u_generic::<16>(result)
     }
 
     pub fn handle_arithmetic_result_u8(&mut self, result: u8) {
-        self.handle_arithmetic_result_u_generic::<8, u8>(result as u16)
+        self.handle_arithmetic_result_u_generic::<8>(result as u16)
     }
 
     pub fn flag_zero(&self) -> bool {
         (self.flags & Self::FLAG_ZF) > 0
+    }
+
+    pub fn flag_borrow(&self) -> bool {
+        (self.flags & Self::FLAG_CF) > 0
     }
 }

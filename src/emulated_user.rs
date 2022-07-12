@@ -29,6 +29,19 @@ impl EmulatedUser {
         Ok(())
     }
 
+    fn load_string(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let buffer_max = accessor.number_argument(0)?;
+        let buffer = accessor.pointer_argument(1)?;
+        let uid = accessor.number_argument(3)?;
+        let h_instance = accessor.number_argument(4)?;
+        println!(
+            "LOAD STRING {:x} {:x} {:x} {:x}",
+            h_instance, uid, buffer, buffer_max
+        );
+        // TODO
+        Ok(())
+    }
+
     fn get_system_metrics(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let metric = accessor.number_argument(0)?;
         println!("GET SYSTEM METRICS {:x}", metric);
@@ -71,6 +84,7 @@ impl EmulatedUser {
         match nr {
             5 => self.init_app(emulator_accessor),
             87 => self.dialog_box(emulator_accessor),
+            176 => self.load_string(emulator_accessor),
             179 => self.get_system_metrics(emulator_accessor),
             420 => self.wsprintf(emulator_accessor),
             nr => {

@@ -38,6 +38,16 @@ impl Memory {
         Ok(())
     }
 
+    pub fn write<const N: usize>(&mut self, address: u32, data: u16) -> Result<(), EmulatorError> {
+        if N == 8 {
+            self.write_8(address, data as u8)
+        } else if N == 16 {
+            self.write_16(address, data)
+        } else {
+            unreachable!()
+        }
+    }
+
     pub fn read_16(&self, address: u32) -> Result<u16, EmulatorError> {
         // TODO: bounds check
         Ok(u16_from_slice(&self.bytes, address as usize))
