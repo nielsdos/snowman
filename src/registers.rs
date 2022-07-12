@@ -16,6 +16,7 @@ impl Registers {
     pub const FLAG_ZF: u16 = 1 << 6;
     pub const FLAG_PF: u16 = 1 << 2;
     pub const FLAG_AF: u16 = 1 << 4;
+    pub const FLAG_DF: u16 = 1 << 10;
 
     pub const REG_AX: u8 = 0;
     pub const REG_CX: u8 = 1;
@@ -67,6 +68,14 @@ impl Registers {
     #[inline]
     pub fn flags(&self) -> u16 {
         self.flags
+    }
+
+    pub fn set_direction_flag(&mut self, flag: bool) {
+        if flag {
+            self.flags |= Self::FLAG_DF;
+        } else {
+            self.flags &= !Self::FLAG_DF;
+        }
     }
 
     pub fn dec_sp(&mut self, amount: u16) {

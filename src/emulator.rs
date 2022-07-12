@@ -71,6 +71,12 @@ impl Emulator {
         self.push_value_16(self.regs.read_segment(segment))
     }
 
+    fn pop_segment_16(&mut self, segment: u8) -> Result<(), EmulatorError> {
+        let data = self.pop_value_16()?;
+        self.regs.write_segment(segment, data);
+        Ok(())
+    }
+
     fn read_u8_at(&self, offset: usize) -> Result<u8, EmulatorError> {
         // TODO: cast is ugly
         self.memory.read_8(offset as u32)
@@ -269,9 +275,9 @@ impl Emulator {
         Ok(())
     }
 
-    fn jz(&mut self) -> Result<(), EmulatorError> {
+    fn jz_jnz(&mut self, expected_to_jump: bool) -> Result<(), EmulatorError> {
         let destination_offset = self.read_ip_i8()?;
-        if self.regs.flag_zero() {
+        if self.regs.flag_zero() == expected_to_jump {
             self.regs.ip = self.regs.ip.wrapping_add(destination_offset as u16);
         }
         Ok(())
@@ -326,15 +332,9 @@ impl Emulator {
         Ok(())
     }
 
-    fn mov_ax_imm16(&mut self) -> Result<(), EmulatorError> {
+    fn mov_r16_imm16(&mut self, index: u8) -> Result<(), EmulatorError> {
         let data = self.read_ip_u16()?;
-        self.regs.write_gpr_16(Registers::REG_AX, data);
-        Ok(())
-    }
-
-    fn mov_dx_imm16(&mut self) -> Result<(), EmulatorError> {
-        let data = self.read_ip_u16()?;
-        self.regs.write_gpr_16(Registers::REG_DX, data);
+        self.regs.write_gpr_16(index, data);
         Ok(())
     }
 
@@ -468,8 +468,15 @@ impl Emulator {
         Ok(())
     }
 
+    fn set_direction_flag(&mut self, flag: bool) -> Result<(), EmulatorError> {
+        self.regs.set_direction_flag(flag);
+        Ok(())
+    }
+
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
+            0x06 => self.push_segment_16(Registers::REG_ES),
+            0x07 => self.pop_segment_16(Registers::REG_ES),
             0x0B => self.or_r16(),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x2A => self.sub_r8_rm8(),
@@ -477,10 +484,15 @@ impl Emulator {
             0x33 => self.xor_r16(),
             0x50 => self.push_gpr_16(Registers::REG_AX),
             0x52 => self.push_gpr_16(Registers::REG_DX),
+            0x53 => self.push_gpr_16(Registers::REG_BX),
+            0x54 => self.push_gpr_16(Registers::REG_CX),
             0x55 => self.push_gpr_16(Registers::REG_BP),
+            0x56 => self.pop_gpr_16(Registers::REG_SI),
+            0x57 => self.pop_gpr_16(Registers::REG_DI),
             0x58 => self.pop_gpr_16(Registers::REG_AX),
             0x5D => self.pop_gpr_16(Registers::REG_BP),
-            0x74 => self.jz(),
+            0x74 => self.jz_jnz(true),
+            0x75 => self.jz_jnz(false),
             0x83 => self.op_0x83(),
             0x8B => self.mov_r16_rm16(),
             0x89 => self.mov_rm16_r16(),
@@ -490,8 +502,10 @@ impl Emulator {
             0x9A => self.call_far_with_32b_displacement(),
             0xB0 => self.mov_al_imm8(),
             0xB4 => self.mov_ah_imm8(),
-            0xB8 => self.mov_ax_imm16(),
-            0xBA => self.mov_dx_imm16(),
+            0xB8 => self.mov_r16_imm16(Registers::REG_AX),
+            0xB9 => self.mov_r16_imm16(Registers::REG_CX),
+            0xBA => self.mov_r16_imm16(Registers::REG_DX),
+            0xBF => self.mov_r16_imm16(Registers::REG_DI),
             0xC2 => self.ret_near_with_pop(),
             0xC3 => self.ret_near_without_pop(),
             0xC7 => self.mov_rm16_imm16(),
@@ -502,6 +516,7 @@ impl Emulator {
             0xE8 => self.call_near_rel16(),
             0xF6 => self.op_0xf6(),
             0xF7 => self.op_0xf7(),
+            0xFC => self.set_direction_flag(false),
             0xFF => self.op_0xff(),
             nr => {
                 println!("unknown opcode {:x}", nr);
@@ -511,7 +526,7 @@ impl Emulator {
     }
 
     pub fn step(&mut self) {
-        /*println!(
+        println!(
             "Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
             self.regs.read_segment(Registers::REG_CS),
             self.regs.ip,
@@ -522,7 +537,7 @@ impl Emulator {
             self.regs.read_gpr_16(Registers::REG_SP),
             self.regs.read_gpr_16(Registers::REG_BP),
             self.regs.flags(),
-        );*/
+        );
         self.read_opcode().expect("todo");
     }
 
