@@ -367,8 +367,7 @@ impl Emulator {
             // System call handler
             let nr = self.regs.read_gpr_16(Registers::REG_AX);
             let accessor = EmulatorAccessor::new(&self.memory, &mut self.regs);
-            self.emulated_kernel.syscall(nr, accessor);
-            Ok(())
+            self.emulated_kernel.syscall(nr, accessor)
         } else {
             Err(EmulatorError::Exit)
         }
@@ -492,7 +491,7 @@ impl Emulator {
             0xF6 => self.op_0xf6(),
             0xF7 => self.op_0xf7(),
             0xFF => self.op_0xff(),
-            other => Err(EmulatorError::InvalidOpcode),
+            _ => Err(EmulatorError::InvalidOpcode),
         }
     }
 

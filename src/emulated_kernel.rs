@@ -13,7 +13,7 @@ impl EmulatedKernel {
     fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         println!("INIT TASK");
 
-        let mut regs = accessor.regs_mut();
+        let regs = accessor.regs_mut();
 
         // TODO: hardcoded to inittask rn
         regs.write_gpr_16(Registers::REG_AX, 0x10); // TODO: must be = DS I believe
@@ -59,9 +59,7 @@ impl EmulatedKernel {
             30 => self.wait_event(),
             91 => self.init_task(emulator_accessor),
             nr => {
-                // TODO
-                println!("unimplemented system call {}", nr);
-                todo!()
+                todo!("unimplemented syscall {}", nr)
             }
         }
     }

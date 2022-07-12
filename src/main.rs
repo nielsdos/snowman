@@ -287,8 +287,8 @@ fn perform_relocations(
                         for &offset in &relocation.locations {
                             let flat_address = ip + offset as u32;
                             if relocation.source_type == 3 {
-                                memory.write_16(flat_address, segment_and_offset.offset);
-                                memory.write_16(flat_address + 2, segment_and_offset.segment);
+                                memory.write_16(flat_address, segment_and_offset.offset)?;
+                                memory.write_16(flat_address + 2, segment_and_offset.segment)?;
                             } else {
                                 // TODO
                             }
@@ -370,16 +370,19 @@ fn process_file_ne(
         code_segment.logical_sector_offset as usize,
         code_segment.length_of_segment_in_file as usize,
     )?;
-    memory.copy_from(code_bytes, 0x4000); // TODO: code offset & segment
+    memory
+        .copy_from(code_bytes, 0x4000)
+        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
     let emulated_kernel = EmulatedKernel::new();
     perform_relocations(
         &mut memory,
         0x4000,
         &module_reference_table,
-        &code_segment,
+        code_segment,
         &emulated_kernel,
         &mut kernel_module,
-    ); // TODO: also other relocations necessary
+    )
+    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
     let mut emulator = Emulator::new(memory, 0, ip + 0x4000, emulated_kernel);
     emulator.run();
 
