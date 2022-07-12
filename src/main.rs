@@ -490,9 +490,9 @@ fn process_file_ne(
     let ss = executable.read_u16(0x1A)?;
     let sp = executable.read_u16(0x18)?;
 
-    println!("CS:IP data: {:x} {:x}", cs, ip);
-    println!("SS:SP data: {:x} {:x}", ss, sp);
-    println!("DS: {:x}", ds);
+    //println!("CS:IP data: {:x} {:x}", cs, ip);
+    //println!("SS:SP data: {:x} {:x}", ss, sp);
+    //println!("DS: {:x}", ds);
 
     let segment_table = process_segment_table(
         executable,
@@ -519,7 +519,6 @@ fn process_file_ne(
         data_segment.logical_sector_offset as usize,
         data_segment.length_of_segment_in_file as usize,
     )?;
-    println!("{:?}", data_bytes);
     memory
         .copy_from(code_bytes, 0x4000)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
