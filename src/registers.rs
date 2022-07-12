@@ -46,6 +46,7 @@ impl Registers {
         gpr[Self::REG_SP as usize] = 1024; // TODO
         let mut segments = [0; 8];
         segments[Self::REG_CS as usize] = cs;
+        segments[Self::REG_DS as usize] = 0x123; // TODO
         Self {
             ip,
             gpr,
