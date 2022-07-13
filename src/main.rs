@@ -11,6 +11,7 @@ use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
 use std::collections::HashMap;
+use std::{panic, process, thread};
 
 mod constants;
 mod emulated_gdi;
@@ -32,9 +33,24 @@ struct MZResult {
 }
 
 fn main() {
-    //let path = "../vms/WINVER.EXE";
-    let path = "../vms/CLOCK.EXE";
-    //let path = "../vms/GENERIC.EXE";
+    let orig_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // invoke the default handler and exit the process
+        orig_hook(panic_info);
+        process::exit(1);
+    }));
+
+    // Start one executable
+    let exe = thread::spawn(move || {
+        //let path = "../vms/WINVER.EXE";
+        let path = "../vms/CLOCK.EXE";
+        //let path = "../vms/GENERIC.EXE";
+        start_executable(path);
+    });
+    exe.join().expect("join");
+}
+
+fn start_executable(path: &str) {
     let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
     println!("{:?}", process_file(&mut executable));
