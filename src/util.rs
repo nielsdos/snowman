@@ -29,6 +29,7 @@ pub fn u32_from_slice(bytes: &[u8], offset: usize) -> u32 {
 }
 
 pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut address: u32) {
+    print!("  > ");
     loop {
         let data = accessor.memory().read_8(address).unwrap_or(0);
         if data == 0 {

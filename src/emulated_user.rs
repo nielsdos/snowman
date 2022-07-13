@@ -17,18 +17,21 @@ impl EmulatedUser {
     }
 
     fn create_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let param = accessor.word_argument(0)?;
-        let h_instance = accessor.word_argument(1)?;
-        let h_menu = accessor.word_argument(2)?;
-        let h_wnd_parent = accessor.word_argument(3)?;
-        let height = accessor.word_argument(4)?;
-        let width = accessor.word_argument(5)?;
-        let y = accessor.word_argument(6)?;
-        let x = accessor.word_argument(7)?;
-        let style = accessor.word_argument(8)?;
-        let window_name = accessor.pointer_argument(9)?;
-        let class_name = accessor.pointer_argument(11)?;
+        let param = accessor.pointer_argument(0)?;
+        let h_instance = accessor.word_argument(2)?;
+        let h_menu = accessor.word_argument(3)?;
+        let h_wnd_parent = accessor.word_argument(4)?;
+        let height = accessor.word_argument(5)?;
+        let width = accessor.word_argument(6)?;
+        let y = accessor.word_argument(7)?;
+        let x = accessor.word_argument(8)?;
+        let style = accessor.dword_argument(9)?;
+        let window_name = accessor.pointer_argument(11)?;
+        let class_name = accessor.pointer_argument(13)?;
         println!("CREATE WINDOW {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}", class_name, window_name, style, x, y, width, height, h_wnd_parent, h_menu, h_instance, param);
+
+        debug_print_null_terminated_string(&accessor, class_name);
+        debug_print_null_terminated_string(&accessor, window_name);
 
         // TODO: returns the window handle
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0x100);

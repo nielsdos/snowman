@@ -28,19 +28,19 @@ impl<'a> EmulatorAccessor<'a> {
         self.memory.read_16(address)
     }
 
-    /*pub fn dword_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
+    pub fn dword_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
         let address = self.regs.flat_sp() + 4 + nr * 2;
         self.memory.read_32(address)
-    }*/
+    }
 
     pub fn pointer_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
         let segment = self.word_argument(nr + 1)?;
         let offset = self.word_argument(nr)?;
         let flat_address = ((segment as u32) << 4) + (offset as u32);
-        println!(
-            "flat address: {:x}:{:x} = {:x}",
-            segment, offset, flat_address,
-        );
+        //println!(
+        //    "flat address: {:x}:{:x} = {:x}",
+        //    segment, offset, flat_address,
+        //);
         Ok(flat_address)
     }
 
