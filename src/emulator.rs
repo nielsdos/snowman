@@ -148,39 +148,45 @@ impl Emulator {
         &mut self,
         mod_rm: ModRM,
     ) -> Result<u16, EmulatorError> {
-        // TODO: can we use this in writing mod rm too?
         match mod_rm.addressing_mode() {
             0 => match mod_rm.rm() {
-                4 => {
-                    let offset = self.regs.read_gpr_16(Registers::REG_SI);
-                    self.read_memory_ds::<N>(offset)
-                }
+                0 => Ok(self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
+                1 => Ok(self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
+                2 => Ok(self.regs.read_gpr_16(Registers::REG_BP).wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
+                3 => Ok(self.regs.read_gpr_16(Registers::REG_BP).wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
+                4 => Ok(self.regs.read_gpr_16(Registers::REG_SI)),
+                5 => Ok(self.regs.read_gpr_16(Registers::REG_DI)),
                 6 => self.read_ip_u16(),
-                _ => {
-                    println!(
-                        "{} {} {}",
-                        mod_rm.addressing_mode(),
-                        mod_rm.register_destination(),
-                        mod_rm.rm()
-                    );
-                    assert!(false);
-                    Ok(0)
+                7 => Ok(self.regs.read_gpr_16(Registers::REG_BX)),
+                _ => unreachable!()
+            },
+            1 | 2 => {
+                let displacement = if mod_rm.addressing_mode() == 1 {
+                    self.read_ip_i8()? as u16
+                } else {
+                    self.read_ip_u16()?
+                };
+
+                let double_register = |register1: u8, register2: u8| {
+                    Ok(self.regs.read_gpr_16(register1).wrapping_add(self.regs.read_gpr_16(register2)).wrapping_add(displacement))
+                };
+
+                let single_register = |register: u8| {
+                    Ok(self.regs.read_gpr_16(register).wrapping_add(displacement))
+                };
+
+                match mod_rm.rm() {
+                    0 => double_register(Registers::REG_BX, Registers::REG_SI),
+                    1 => double_register(Registers::REG_BX, Registers::REG_DI),
+                    2 => double_register(Registers::REG_BP, Registers::REG_SI),
+                    3 => double_register(Registers::REG_BP, Registers::REG_DI),
+                    4 => single_register(Registers::REG_SI),
+                    5 => single_register(Registers::REG_DI),
+                    6 => single_register(Registers::REG_BP),
+                    7 => single_register(Registers::REG_BX),
+                    _ => unreachable!(),
                 }
             },
-            1 => match mod_rm.rm() {
-                6 => {
-                    // [bp + disp8]
-                    Ok(self
-                        .regs
-                        .read_gpr_16(Registers::REG_BP)
-                        .wrapping_add(self.read_ip_i8()? as u16))
-                }
-                _ => unreachable!(),
-            },
-            2 => {
-                assert!(false);
-                Ok(0)
-            }
             _ => Err(EmulatorError::InvalidOpcode),
         }
     }
@@ -188,9 +194,8 @@ impl Emulator {
     fn read_mod_rm<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
         match mod_rm.addressing_mode() {
             0 | 1 | 2 => {
-                let address = self.calculate_mod_rm_address::<N>(mod_rm)?;
-                // TODO: keep segment in mind
-                self.memory.read::<N>(address as u32)
+                let offset = self.calculate_mod_rm_address::<N>(mod_rm)?;
+                self.read_memory_ds::<N>(offset)
             }
             3 => Ok(self.regs.read_gpr::<N>(mod_rm.rm())),
             _ => unreachable!(),
@@ -211,68 +216,10 @@ impl Emulator {
         data: u16,
     ) -> Result<(), EmulatorError> {
         match mod_rm.addressing_mode() {
-            0 => match mod_rm.rm() {
-                6 => {
-                    let disp16 = self.read_ip_u16()?;
-                    self.write_memory_ds::<N>(disp16, data)
-                }
-                7 => self.write_memory_ds::<N>(self.regs.read_gpr_16(Registers::REG_BX), data),
-                _ => {
-                    println!(
-                        "{} {} {}",
-                        mod_rm.addressing_mode(),
-                        mod_rm.register_destination(),
-                        mod_rm.rm()
-                    );
-                    assert!(false);
-                    Ok(())
-                }
-            },
-            1 => {
-                let mut write_single_register = |register: u8| {
-                    let disp8 = self.read_ip_i8()?;
-                    let offset = self.regs.read_gpr_16(register).wrapping_add(disp8 as u16);
-                    self.write_memory_ds::<N>(offset, data)
-                };
-
-                match mod_rm.rm() {
-                    4 => write_single_register(Registers::REG_SI),
-                    5 => write_single_register(Registers::REG_DI),
-                    6 => write_single_register(Registers::REG_BP),
-                    7 => write_single_register(Registers::REG_BX),
-
-                    _ => {
-                        println!(
-                            "{} {} {}",
-                            mod_rm.addressing_mode(),
-                            mod_rm.register_destination(),
-                            mod_rm.rm()
-                        );
-                        assert!(false);
-                        Ok(())
-                    }
-                }
+            0 | 1 | 2 => {
+                let offset = self.calculate_mod_rm_address::<N>(mod_rm)?;
+                self.write_memory_ds::<N>(offset, data)
             }
-            2 => match mod_rm.rm() {
-                7 => {
-                    let disp16 = self.read_ip_u16()?;
-                    let offset = self
-                        .regs
-                        .read_gpr_16(Registers::REG_BX)
-                        .wrapping_add(disp16);
-                    self.write_memory_ds::<N>(offset, data)
-                }
-                _ => {
-                    println!(
-                        "{} {} {}",
-                        mod_rm.addressing_mode(),
-                        mod_rm.register_destination(),
-                        mod_rm.rm()
-                    );
-                    assert!(false);
-                    Ok(())
-                }
-            },
             3 => {
                 self.regs.write_gpr::<N>(mod_rm.rm(), data);
                 Ok(())
