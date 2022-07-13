@@ -150,15 +150,27 @@ impl Emulator {
     ) -> Result<u16, EmulatorError> {
         match mod_rm.addressing_mode() {
             0 => match mod_rm.rm() {
-                0 => Ok(self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
-                1 => Ok(self.regs.read_gpr_16(Registers::REG_BX).wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
-                2 => Ok(self.regs.read_gpr_16(Registers::REG_BP).wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
-                3 => Ok(self.regs.read_gpr_16(Registers::REG_BP).wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
+                0 => Ok(self
+                    .regs
+                    .read_gpr_16(Registers::REG_BX)
+                    .wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
+                1 => Ok(self
+                    .regs
+                    .read_gpr_16(Registers::REG_BX)
+                    .wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
+                2 => Ok(self
+                    .regs
+                    .read_gpr_16(Registers::REG_BP)
+                    .wrapping_add(self.regs.read_gpr_16(Registers::REG_SI))),
+                3 => Ok(self
+                    .regs
+                    .read_gpr_16(Registers::REG_BP)
+                    .wrapping_add(self.regs.read_gpr_16(Registers::REG_DI))),
                 4 => Ok(self.regs.read_gpr_16(Registers::REG_SI)),
                 5 => Ok(self.regs.read_gpr_16(Registers::REG_DI)),
                 6 => self.read_ip_u16(),
                 7 => Ok(self.regs.read_gpr_16(Registers::REG_BX)),
-                _ => unreachable!()
+                _ => unreachable!(),
             },
             1 | 2 => {
                 let displacement = if mod_rm.addressing_mode() == 1 {
@@ -168,12 +180,15 @@ impl Emulator {
                 };
 
                 let double_register = |register1: u8, register2: u8| {
-                    Ok(self.regs.read_gpr_16(register1).wrapping_add(self.regs.read_gpr_16(register2)).wrapping_add(displacement))
+                    Ok(self
+                        .regs
+                        .read_gpr_16(register1)
+                        .wrapping_add(self.regs.read_gpr_16(register2))
+                        .wrapping_add(displacement))
                 };
 
-                let single_register = |register: u8| {
-                    Ok(self.regs.read_gpr_16(register).wrapping_add(displacement))
-                };
+                let single_register =
+                    |register: u8| Ok(self.regs.read_gpr_16(register).wrapping_add(displacement));
 
                 match mod_rm.rm() {
                     0 => double_register(Registers::REG_BX, Registers::REG_SI),
@@ -186,7 +201,7 @@ impl Emulator {
                     7 => single_register(Registers::REG_BX),
                     _ => unreachable!(),
                 }
-            },
+            }
             _ => Err(EmulatorError::InvalidOpcode),
         }
     }
@@ -597,12 +612,10 @@ impl Emulator {
 
     fn stosb(&mut self) -> Result<(), EmulatorError> {
         todo!("STOSB");
-        Ok(())
     }
 
     fn rep(&mut self) -> Result<(), EmulatorError> {
         todo!("REP");
-        Ok(())
     }
 
     fn lea(&mut self) -> Result<(), EmulatorError> {
@@ -682,7 +695,8 @@ impl Emulator {
             0x73 => self.jcc(!self.regs.flag_carry()),
             0x74 => self.jcc(self.regs.flag_zero()),
             0x75 => self.jcc(!self.regs.flag_zero()),
-            0x7E => self.jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x7E => self
+                .jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
             0x83 => self.op_0x83(),
             0x8B => self.mov_r16_rm16(),
             0x89 => self.mov_rm16_r16(),

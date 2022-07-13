@@ -13,6 +13,9 @@ use crate::util::{
 use std::collections::HashMap;
 use std::{panic, process, thread};
 
+mod atom_table;
+mod bitmap_allocator;
+mod byte_string;
 mod constants;
 mod emulated_gdi;
 mod emulated_kernel;
@@ -27,9 +30,6 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
-mod atom_table;
-mod bitmap_allocator;
-mod byte_string;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -587,7 +587,7 @@ fn process_file_ne(
         &entry_table,
         code_segment,
     )
-        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
     perform_relocations(
         &mut memory,
         0x1230,
@@ -595,7 +595,7 @@ fn process_file_ne(
         &entry_table,
         data_segment,
     )
-        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let emulated_kernel = EmulatedKernel::new();

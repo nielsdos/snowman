@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::bitmap_allocator::BitmapAllocator;
 use crate::byte_string::ByteString;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Atom(u16);

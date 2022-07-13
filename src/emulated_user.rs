@@ -34,7 +34,20 @@ impl EmulatedUser {
         let style = accessor.dword_argument(9)?;
         let window_name = accessor.pointer_argument(11)?;
         let class_name = accessor.pointer_argument(13)?;
-        println!("CREATE WINDOW {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}", class_name, window_name, style, x, y, width, height, h_wnd_parent, h_menu, h_instance, param);
+        println!(
+            "CREATE WINDOW {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+            class_name,
+            window_name,
+            style,
+            x,
+            y,
+            width,
+            height,
+            h_wnd_parent,
+            h_menu,
+            h_instance,
+            param
+        );
 
         debug_print_null_terminated_string(&accessor, class_name);
         debug_print_null_terminated_string(&accessor, window_name);
@@ -79,7 +92,9 @@ impl EmulatedUser {
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
         if let Some(atom) = self.user_atom_table.register_atom(cloned_class_name) {
-            accessor.regs_mut().write_gpr_16(Registers::REG_AX, atom.as_u16());
+            accessor
+                .regs_mut()
+                .write_gpr_16(Registers::REG_AX, atom.as_u16());
         } else {
             accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         }

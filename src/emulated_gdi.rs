@@ -9,10 +9,7 @@ impl EmulatedGdi {
         Self {}
     }
 
-    fn create_dc(
-        &self,
-        mut emulator_accessor: EmulatorAccessor,
-    ) -> Result<(), EmulatorError> {
+    fn create_dc(&self, mut emulator_accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let pdm = emulator_accessor.pointer_argument(0)?;
         let port = emulator_accessor.pointer_argument(2)?;
         let device = emulator_accessor.pointer_argument(4)?;
@@ -27,10 +24,7 @@ impl EmulatedGdi {
         Ok(())
     }
 
-    fn delete_dc(
-        &self,
-        mut emulator_accessor: EmulatorAccessor,
-    ) -> Result<(), EmulatorError> {
+    fn delete_dc(&self, mut emulator_accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let hdc = emulator_accessor.word_argument(0)?;
         println!("DELETE DC {:x}", hdc);
 

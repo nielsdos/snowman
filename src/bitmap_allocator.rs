@@ -7,7 +7,8 @@ pub struct BitmapAllocator {
 impl BitmapAllocator {
     pub fn new(nr_bits: usize) -> Self {
         Self {
-            bits: vec![usize::MAX; (nr_bits + size_of::<usize>() - 1) / size_of::<usize>()].into_boxed_slice()
+            bits: vec![usize::MAX; (nr_bits + size_of::<usize>() - 1) / size_of::<usize>()]
+                .into_boxed_slice(),
         }
     }
 
@@ -16,7 +17,7 @@ impl BitmapAllocator {
     }
 
     pub fn allocate(&mut self) -> Option<usize> {
-        for (index, mut entry) in self.bits.iter_mut().enumerate() {
+        for (index, entry) in self.bits.iter_mut().enumerate() {
             if *entry != 0 {
                 let bit = entry.trailing_zeros();
                 *entry &= !(1 << bit);

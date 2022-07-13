@@ -1,6 +1,6 @@
+use crate::byte_string::ByteString;
 use crate::registers::Registers;
 use crate::{EmulatorError, Memory};
-use crate::byte_string::ByteString;
 
 pub struct EmulatorAccessor<'a> {
     memory: &'a mut Memory,
@@ -64,10 +64,7 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(number_of_bytes_copied)
     }
 
-    pub fn clone_string(
-        &mut self,
-        mut src_ptr: u32,
-    ) -> Result<ByteString, EmulatorError> {
+    pub fn clone_string(&mut self, mut src_ptr: u32) -> Result<ByteString, EmulatorError> {
         let mut output = Vec::new();
         loop {
             let data = self.memory.read_8(src_ptr)?;
