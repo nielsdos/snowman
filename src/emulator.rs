@@ -87,18 +87,8 @@ impl Emulator {
         Ok(())
     }
 
-    fn read_u8_at(&self, offset: usize) -> Result<u8, EmulatorError> {
-        // TODO: cast is ugly
-        self.memory.read_8(offset as u32)
-    }
-
-    fn read_u16_at(&self, offset: usize) -> Result<u16, EmulatorError> {
-        // TODO: cast is ugly
-        self.memory.read_16(offset as u32)
-    }
-
     pub fn read_ip_u8(&mut self) -> Result<u8, EmulatorError> {
-        let byte = self.read_u8_at(self.regs.flat_ip())?;
+        let byte = self.memory.read_8(self.regs.flat_ip())?;
         self.regs.ip = self.regs.ip.wrapping_add(1);
         Ok(byte)
     }
@@ -112,7 +102,7 @@ impl Emulator {
     }
 
     pub fn read_ip_u16(&mut self) -> Result<u16, EmulatorError> {
-        let byte = self.read_u16_at(self.regs.flat_ip())?;
+        let byte = self.memory.read_16(self.regs.flat_ip())?;
         self.regs.ip += 2;
         Ok(byte)
     }

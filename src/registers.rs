@@ -54,8 +54,8 @@ impl Registers {
         }
     }
 
-    pub fn flat_ip(&self) -> usize {
-        self.ip as usize + ((self.read_segment(Registers::REG_CS) as usize) << 4)
+    pub fn flat_ip(&self) -> u32 {
+        self.ip as u32 + ((self.read_segment(Registers::REG_CS) as u32) << 4)
     }
 
     pub fn flat_sp(&self) -> u32 {
