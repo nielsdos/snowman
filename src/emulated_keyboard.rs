@@ -1,6 +1,4 @@
 use crate::emulator_accessor::EmulatorAccessor;
-use crate::registers::Registers;
-use crate::util::debug_print_null_terminated_string;
 use crate::EmulatorError;
 
 pub struct EmulatedKeyboard {}

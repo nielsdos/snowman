@@ -1,5 +1,9 @@
 use crate::emulator_accessor::EmulatorAccessor;
 
+pub fn expect_magic<E>(value: u16, expected: u16, error: E) -> Result<(), E> {
+    bool_to_result(value == expected, error)
+}
+
 pub fn bool_to_result<T>(result: bool, error: T) -> Result<(), T> {
     if result {
         Ok(())

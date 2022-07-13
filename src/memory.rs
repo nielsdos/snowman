@@ -1,6 +1,6 @@
 use crate::emulator_error::EmulatorError;
-use crate::{u16_from_slice, Segment};
 use crate::util::u32_from_slice;
+use crate::{u16_from_slice, Segment};
 
 pub struct Memory {
     bytes: Box<[u8]>,

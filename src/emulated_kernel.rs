@@ -1,6 +1,5 @@
-use crate::constants::{WF_80x87, WF_CPU386, WF_ENHANCED, WF_PAGING, WF_PMODE};
+use crate::constants::{WF_80X87, WF_CPU386, WF_ENHANCED, WF_PAGING, WF_PMODE};
 use crate::emulator_accessor::EmulatorAccessor;
-use crate::module::Module;
 use crate::registers::Registers;
 use crate::{debug_print_null_terminated_string, EmulatorError};
 
@@ -18,11 +17,28 @@ impl EmulatedKernel {
         Ok(())
     }
 
+    fn local_alloc(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let size = accessor.word_argument(0)?;
+        let flags = accessor.word_argument(1)?;
+        println!("LOCAL ALLOC {} {:x}", size, flags);
+        // TODO: this now always fails by returning NULL
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        Ok(())
+    }
+
+    fn local_free(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let handle = accessor.word_argument(0)?;
+        println!("LOCAL FREE {:x}", handle);
+        // TODO
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        Ok(())
+    }
+
     fn get_winflags(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         println!("GET WINFLAGS");
         accessor.regs_mut().write_gpr_16(
             Registers::REG_AX,
-            WF_80x87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED,
+            WF_80X87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED,
         );
         accessor.regs_mut().write_gpr_16(Registers::REG_DX, 0);
         Ok(())
@@ -86,7 +102,7 @@ impl EmulatedKernel {
         let default = accessor.word_argument(0)?;
         let key_name = accessor.pointer_argument(1)?;
         let app_name = accessor.pointer_argument(3)?;
-        print!("GET PROFILE INT {}", default);
+        println!("GET PROFILE INT {}", default);
         debug_print_null_terminated_string(&accessor, key_name);
         debug_print_null_terminated_string(&accessor, app_name);
         // TODO
@@ -95,16 +111,21 @@ impl EmulatedKernel {
     }
 
     fn get_profile_string(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let size = accessor.dword_argument(0)?;
-        let returned_string = accessor.pointer_argument(2)?;
-        let default = accessor.pointer_argument(4)?;
-        let key_name = accessor.pointer_argument(6)?;
-        let app_name = accessor.pointer_argument(8)?;
-        print!("GET PROFILE STRING {}", size);
+        // TODO: for some reason incorrect?
+        let size = accessor.word_argument(0)?;
+        let returned_string = accessor.pointer_argument(1)?;
+        let default = accessor.pointer_argument(3)?;
+        let key_name = accessor.pointer_argument(5)?;
+        let app_name = accessor.pointer_argument(7)?;
+        println!("GET PROFILE STRING {}", size);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default, returned_string)?;
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, (number_of_bytes_copied >> 16) as u16);
-        accessor.regs_mut().write_gpr_16(Registers::REG_DX, number_of_bytes_copied as u16);
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, (number_of_bytes_copied >> 16) as u16);
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_DX, number_of_bytes_copied as u16);
         Ok(())
     }
 
@@ -115,6 +136,8 @@ impl EmulatedKernel {
     ) -> Result<(), EmulatorError> {
         match nr {
             3 => self.get_version(emulator_accessor),
+            5 => self.local_alloc(emulator_accessor),
+            7 => self.local_free(emulator_accessor),
             23 => self.lock_segment(emulator_accessor),
             24 => self.unlock_segment(emulator_accessor),
             30 => self.wait_event(),

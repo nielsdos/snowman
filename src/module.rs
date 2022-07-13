@@ -83,19 +83,16 @@ impl KernelModule {
             base_module: BaseModule::new(flat_address, KERNEL_INT_VECTOR),
         }
     }
-
-    pub fn base(&self) -> &BaseModule {
-        &self.base_module
-    }
 }
 
 impl Module for KernelModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            23 | 24 | 30 => 2,
+            5 => 4,
+            7 | 23 | 24 | 30 => 2,
             51 => 6,
             57 => 10,
-            58 => 20,
+            58 => 18,
             _ => 0,
         }
     }
@@ -121,6 +118,8 @@ impl Module for UserModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
             5 | 179 => 2,
+            57 => 4,
+            173 => 6,
             176 => 10,
             87 => 12,
             _ => 0,
@@ -147,6 +146,7 @@ impl GdiModule {
 impl Module for GdiModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
+            119 => 4,
             _ => 0,
         }
     }

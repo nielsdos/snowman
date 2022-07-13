@@ -1,15 +1,21 @@
+use crate::emulated_gdi::EmulatedGdi;
 use crate::emulated_kernel::EmulatedKernel;
+use crate::emulated_keyboard::EmulatedKeyboard;
 use crate::emulated_user::EmulatedUser;
 use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
 use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
-use crate::util::{bool_to_result, debug_print_null_terminated_string, u16_from_slice};
+use crate::util::{
+    bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
+};
 use std::collections::HashMap;
 
 mod constants;
+mod emulated_gdi;
 mod emulated_kernel;
+mod emulated_keyboard;
 mod emulated_user;
 mod emulator;
 mod emulator_accessor;
@@ -20,8 +26,6 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
-mod emulated_gdi;
-mod emulated_keyboard;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -30,6 +34,7 @@ struct MZResult {
 fn main() {
     //let path = "../vms/WINVER.EXE";
     let path = "../vms/CLOCK.EXE";
+    //let path = "../vms/GENERIC.EXE";
     let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
     println!("{:?}", process_file(&mut executable));
@@ -279,7 +284,11 @@ fn process_module_reference_table(
             offset_to_imported_name_table + module_name_offset_in_imported_name_table as usize;
         let module_name_length = executable.read_u8(start_offset)?;
         let module_name = executable.slice(start_offset + 1, module_name_length as usize)?;
-        println!("module {} = {}", module_index + 1, String::from_utf8_lossy(module_name));
+        println!(
+            "module {} = {}",
+            module_index + 1,
+            String::from_utf8_lossy(module_name)
+        );
 
         if module_name == b"KERNEL" {
             module_reference_table
@@ -335,7 +344,7 @@ fn process_entry_table(
     let mut offset = 0;
     let mut ordinal_index = 1u16;
     while offset < entry_table_bytes {
-        let number_of_entries = executable.read_u8(offset + 0)?;
+        let number_of_entries = executable.read_u8(offset)?;
         if number_of_entries == 0 {
             break;
         }
@@ -350,13 +359,13 @@ fn process_entry_table(
             let flag = executable.read_u8(offset)?;
 
             if segment_indicator == 0xff {
-                // TODO: expect 16-bit number 0x3FCD here
                 let magic = executable.read_u16(offset + 1)?;
+                expect_magic(magic, 0x3FCD, ExecutableFormatError::HeaderMagic)?;
                 let segment_number = executable.read_u8(offset + 3)?;
                 let offset_within_segment_to_entry_point = executable.read_u16(offset + 4)?;
                 println!(
-                    "movable segment {:x} {:x} {:x}",
-                    magic, segment_number, offset_within_segment_to_entry_point
+                    "movable segment {} {:x} {:x} {:x}",
+                    flag, magic, segment_number, offset_within_segment_to_entry_point
                 );
 
                 entry_table.entries.insert(
@@ -394,7 +403,10 @@ fn perform_relocations(
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
-                    println!("import ordinal {}", import.index_into_module_reference_table);
+                    println!(
+                        "import ordinal {}",
+                        import.index_into_module_reference_table
+                    );
                     // Relocate kernel system call
                     let module =
                         module_reference_table.module(import.index_into_module_reference_table)?;
@@ -547,8 +559,6 @@ fn process_file_ne(
     memory
         .copy_from(data_bytes, 0x123 * 0x10)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: data offset & segment
-    let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new();
     perform_relocations(
         &mut memory,
         0x4000,
@@ -559,6 +569,10 @@ fn process_file_ne(
     .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
+    let emulated_kernel = EmulatedKernel::new();
+    let emulated_user = EmulatedUser::new();
+    let emulated_gdi = EmulatedGdi::new();
+    let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
         memory,
         0x123,
@@ -566,6 +580,8 @@ fn process_file_ne(
         ip + 0x4000,
         emulated_kernel,
         emulated_user,
+        emulated_gdi,
+        emulated_keyboard,
     );
     emulator.run();
 

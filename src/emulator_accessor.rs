@@ -28,10 +28,10 @@ impl<'a> EmulatorAccessor<'a> {
         self.memory.read_16(address)
     }
 
-    pub fn dword_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
+    /*pub fn dword_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
         let address = self.regs.flat_sp() + 4 + nr * 2;
         self.memory.read_32(address)
-    }
+    }*/
 
     pub fn pointer_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
         let segment = self.word_argument(nr + 1)?;
@@ -39,14 +39,16 @@ impl<'a> EmulatorAccessor<'a> {
         let flat_address = ((segment as u32) << 4) + (offset as u32);
         println!(
             "flat address: {:x}:{:x} = {:x}",
-            segment,
-            offset,
-            flat_address,
+            segment, offset, flat_address,
         );
         Ok(flat_address)
     }
 
-    pub fn copy_string(&mut self, mut src_ptr: u32, mut dst_ptr: u32) -> Result<u32, EmulatorError> {
+    pub fn copy_string(
+        &mut self,
+        mut src_ptr: u32,
+        mut dst_ptr: u32,
+    ) -> Result<u32, EmulatorError> {
         let mut number_of_bytes_copied = 0;
         loop {
             let data = self.memory.read_8(src_ptr)?;
