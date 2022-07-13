@@ -110,6 +110,25 @@ impl EmulatedKernel {
         Ok(())
     }
 
+    fn find_resource(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let _type = accessor.pointer_argument(0)?;
+        let name = accessor.pointer_argument(2)?;
+        let module = accessor.word_argument(4)?;
+        println!("FIND RESOURCE {:x} {:x} {:x}", _type, name, module);
+        // TODO: this returns a hardcoded handle
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        Ok(())
+    }
+
+    fn load_resource(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let res_info = accessor.word_argument(0)?;
+        let module = accessor.word_argument(1)?;
+        println!("LOAD RESOURCE {:x} {:x}", module, res_info);
+        // TODO: this returns a hardcoded handle
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        Ok(())
+    }
+
     fn get_profile_string(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         // TODO: for some reason incorrect?
         let size = accessor.word_argument(0)?;
@@ -143,6 +162,8 @@ impl EmulatedKernel {
             30 => self.wait_event(),
             51 => self.make_proc_instance(emulator_accessor),
             57 => self.get_profile_int(emulator_accessor),
+            60 => self.find_resource(emulator_accessor),
+            61 => self.load_resource(emulator_accessor),
             58 => self.get_profile_string(emulator_accessor),
             91 => self.init_task(emulator_accessor),
             132 => self.get_winflags(emulator_accessor),

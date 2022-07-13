@@ -235,4 +235,12 @@ impl Registers {
     pub fn flag_carry(&self) -> bool {
         (self.flags & Self::FLAG_CF) > 0
     }
+
+    pub fn flag_overflow(&self) -> bool {
+        (self.flags & Self::FLAG_OF) > 0
+    }
+
+    pub fn flag_sign(&self) -> bool {
+        (self.flags & Self::FLAG_SF) > 0
+    }
 }

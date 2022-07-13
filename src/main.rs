@@ -43,8 +43,9 @@ fn main() {
     // Start one executable
     let exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
-        let path = "../vms/CLOCK.EXE";
+        //let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";
+        let path = "../Win16asm/hw.exe";
         start_executable(path);
     });
     exe.join().expect("join");
@@ -410,12 +411,12 @@ fn process_entry_table(
 
 fn perform_relocations(
     memory: &mut Memory,
-    ip: u32,
+    flat_address_offset: u32,
     module_reference_table: &ModuleReferenceTable,
     entry_table: &EntryTable,
-    code_segment: &Segment,
+    segment: &Segment,
 ) -> Result<(), EmulatorError> {
-    if let Some(relocations) = code_segment.relocations.as_ref() {
+    if let Some(relocations) = segment.relocations.as_ref() {
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
@@ -433,12 +434,13 @@ fn perform_relocations(
                     )?;
 
                     for &offset in &relocation.locations {
-                        let flat_address = ip + offset as u32;
+                        let flat_address = flat_address_offset + offset as u32;
                         if relocation.source_type == 3 {
                             memory.write_16(flat_address, segment_and_offset.offset)?;
                             memory.write_16(flat_address + 2, segment_and_offset.segment)?;
                         } else {
                             // TODO
+                            println!("other source type {}", relocation.source_type);
                         }
                     }
                 }
@@ -469,7 +471,7 @@ fn perform_relocations(
                     };
 
                     for &offset in &relocation.locations {
-                        let flat_address = ip + offset as u32;
+                        let flat_address = flat_address_offset + offset as u32;
 
                         if relocation.source_type == 2 {
                             memory.write_16(flat_address, segment)?;
@@ -539,9 +541,9 @@ fn process_file_ne(
     let ss = executable.read_u16(0x1A)?;
     let sp = executable.read_u16(0x18)?;
 
-    //println!("CS:IP data: {:x} {:x}", cs, ip);
-    //println!("SS:SP data: {:x} {:x}", ss, sp);
-    //println!("DS: {:x}", ds);
+    println!("CS:IP data: {:x} {:x}", cs, ip);
+    println!("SS:SP data: {:x} {:x}", ss, sp);
+    println!("DS: {:x}", ds);
 
     let segment_table = process_segment_table(
         executable,
@@ -582,7 +584,15 @@ fn process_file_ne(
         &entry_table,
         code_segment,
     )
-    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    perform_relocations(
+        &mut memory,
+        0x1230,
+        &module_reference_table,
+        &entry_table,
+        data_segment,
+    )
+        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let emulated_kernel = EmulatedKernel::new();

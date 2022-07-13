@@ -88,10 +88,10 @@ impl KernelModule {
 impl Module for KernelModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            5 => 4,
             7 | 23 | 24 | 30 => 2,
+            5 | 61 => 4,
             51 => 6,
-            57 => 10,
+            57 | 60 => 10,
             58 => 18,
             _ => 0,
         }
@@ -117,11 +117,12 @@ impl UserModule {
 impl Module for UserModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            5 | 179 => 2,
-            57 => 4,
+            5 | 124 | 179 => 2,
+            42 | 57 => 4,
             173 => 6,
-            176 => 10,
+            108 | 176 => 10,
             87 => 12,
+            41 => 30,
             _ => 0,
         }
     }
@@ -146,7 +147,9 @@ impl GdiModule {
 impl Module for GdiModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            119 => 4,
+            53 => 16,
+            68 => 2,
+            80 | 119 => 4,
             _ => 0,
         }
     }
