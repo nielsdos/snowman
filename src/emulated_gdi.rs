@@ -1,6 +1,6 @@
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
-use crate::EmulatorError;
+use crate::{debug, EmulatorError};
 
 pub struct EmulatedGdi {}
 
@@ -14,7 +14,10 @@ impl EmulatedGdi {
         let port = emulator_accessor.pointer_argument(2)?;
         let device = emulator_accessor.pointer_argument(4)?;
         let driver = emulator_accessor.pointer_argument(6)?;
-        println!("CREATE DC {:x} {:x} {:x} {:x}", driver, device, port, pdm);
+        debug!(
+            "[gdi] CREATE DC {:x} {:x} {:x} {:x}",
+            driver, device, port, pdm
+        );
 
         // TODO: this always indicates failure right now
         emulator_accessor
@@ -26,7 +29,7 @@ impl EmulatedGdi {
 
     fn delete_dc(&self, mut emulator_accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let hdc = emulator_accessor.word_argument(0)?;
-        println!("DELETE DC {:x}", hdc);
+        debug!("[gdi] DELETE DC {:x}", hdc);
 
         // TODO: this always indicates success right now
         emulator_accessor
@@ -42,7 +45,7 @@ impl EmulatedGdi {
     ) -> Result<(), EmulatorError> {
         let index = emulator_accessor.word_argument(0)?;
         let hdc = emulator_accessor.word_argument(1)?;
-        println!("GET DEVICE CAPS {:x} {:x}", hdc, index);
+        debug!("[gdi] GET DEVICE CAPS {:x} {:x}", hdc, index);
 
         // TODO
         emulator_accessor
@@ -57,7 +60,7 @@ impl EmulatedGdi {
         mut emulator_accessor: EmulatorAccessor,
     ) -> Result<(), EmulatorError> {
         let pointer = emulator_accessor.pointer_argument(0)?;
-        println!("ADD FONT RESOURCE {:x}", pointer);
+        debug!("[gdi] ADD FONT RESOURCE {:x}", pointer);
 
         // TODO: this always indicates failure right now
         emulator_accessor

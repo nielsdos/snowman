@@ -1,7 +1,7 @@
 use crate::constants::{WF_80X87, WF_CPU386, WF_ENHANCED, WF_PAGING, WF_PMODE};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
-use crate::{debug_print_null_terminated_string, EmulatorError};
+use crate::{debug, debug_print_null_terminated_string, EmulatorError};
 
 pub struct EmulatedKernel {}
 
@@ -11,7 +11,7 @@ impl EmulatedKernel {
     }
 
     fn get_version(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("GET VERSION");
+        debug!("[kernel] GET VERSION");
         // Report version Windows 3.10
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0x0A03);
         Ok(())
@@ -20,7 +20,7 @@ impl EmulatedKernel {
     fn local_alloc(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let size = accessor.word_argument(0)?;
         let flags = accessor.word_argument(1)?;
-        println!("LOCAL ALLOC {} {:x}", size, flags);
+        debug!("[kernel] LOCAL ALLOC {} {:x}", size, flags);
         // TODO: this now always fails by returning NULL
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
@@ -28,14 +28,14 @@ impl EmulatedKernel {
 
     fn local_free(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let handle = accessor.word_argument(0)?;
-        println!("LOCAL FREE {:x}", handle);
+        debug!("[kernel] LOCAL FREE {:x}", handle);
         // TODO
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
     }
 
     fn get_winflags(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("GET WINFLAGS");
+        debug!("[kernel] GET WINFLAGS");
         accessor.regs_mut().write_gpr_16(
             Registers::REG_AX,
             WF_80X87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED,
@@ -45,7 +45,7 @@ impl EmulatedKernel {
     }
 
     fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("INIT TASK");
+        debug!("[kernel] INIT TASK");
 
         let regs = accessor.regs_mut();
 
@@ -64,19 +64,19 @@ impl EmulatedKernel {
     }
 
     fn lock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("LOCK SEGMENT {:x}", accessor.word_argument(0)?);
+        debug!("[kernel] LOCK SEGMENT {:x}", accessor.word_argument(0)?);
         // TODO
         Ok(())
     }
 
     fn unlock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("UNLOCK SEGMENT {:x}", accessor.word_argument(0)?);
+        debug!("[kernel] UNLOCK SEGMENT {:x}", accessor.word_argument(0)?);
         // TODO
         Ok(())
     }
 
     fn wait_event(&self) -> Result<(), EmulatorError> {
-        println!("WAIT EVENT");
+        debug!("[kernel] WAIT EVENT");
 
         Ok(())
         // TODO?
@@ -102,7 +102,7 @@ impl EmulatedKernel {
         let default = accessor.word_argument(0)?;
         let key_name = accessor.pointer_argument(1)?;
         let app_name = accessor.pointer_argument(3)?;
-        println!("GET PROFILE INT {}", default);
+        debug!("[kernel] GET PROFILE INT {}", default);
         debug_print_null_terminated_string(&accessor, key_name);
         debug_print_null_terminated_string(&accessor, app_name);
         // TODO
@@ -114,7 +114,7 @@ impl EmulatedKernel {
         let _type = accessor.pointer_argument(0)?;
         let name = accessor.pointer_argument(2)?;
         let module = accessor.word_argument(4)?;
-        println!("FIND RESOURCE {:x} {:x} {:x}", _type, name, module);
+        debug!("[kernel] FIND RESOURCE {:x} {:x} {:x}", _type, name, module);
         // TODO: this returns a hardcoded handle
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
@@ -123,7 +123,7 @@ impl EmulatedKernel {
     fn load_resource(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let res_info = accessor.word_argument(0)?;
         let module = accessor.word_argument(1)?;
-        println!("LOAD RESOURCE {:x} {:x}", module, res_info);
+        debug!("[kernel] LOAD RESOURCE {:x} {:x}", module, res_info);
         // TODO: this returns a hardcoded handle
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
@@ -136,7 +136,7 @@ impl EmulatedKernel {
         let default = accessor.pointer_argument(3)?;
         let key_name = accessor.pointer_argument(5)?;
         let app_name = accessor.pointer_argument(7)?;
-        println!("GET PROFILE STRING {}", size);
+        debug!("[kernel] GET PROFILE STRING {}", size);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default, returned_string)?;
         accessor

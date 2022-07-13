@@ -10,7 +10,7 @@ use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;
-use crate::EmulatedUser;
+use crate::{debug, EmulatedUser};
 
 pub struct Emulator {
     regs: Registers,
@@ -332,7 +332,7 @@ impl Emulator {
                 self.regs.handle_bitwise_result_u_generic::<N>(data & imm);
             }
             _ => {
-                println!("{}", mod_rm.register_destination());
+                debug!("[cpu] {}", mod_rm.register_destination());
                 unreachable!()
             }
         }
@@ -412,13 +412,24 @@ impl Emulator {
 
     fn int(&mut self) -> Result<(), EmulatorError> {
         let nr = self.read_ip_u8()?;
-        println!("interrupt {:x}", nr);
+        debug!(
+            "[cpu] interrupt {:x}{}",
+            nr,
+            if nr >= LOWEST_SYSCALL_INT_VECTOR {
+                " (thunk into emulated module)"
+            } else {
+                ""
+            }
+        );
         if nr == 0x21 {
             let ah = self.regs.read_gpr_hi_8(Registers::REG_AH);
             if ah == 0x4C {
-                println!("Exit with {}", self.regs.read_gpr_lo_8(Registers::REG_AL));
+                debug!(
+                    "[cpu] Exit with {}",
+                    self.regs.read_gpr_lo_8(Registers::REG_AL)
+                );
             } else if ah == 0 {
-                println!("Exit with {}", 0);
+                debug!("[cpu] Exit with {}", 0);
             } else if ah == 0x30 {
                 // Get DOS version, fake MS-DOS 5.0
                 // TODO: only al and ah are set right now
@@ -520,7 +531,7 @@ impl Emulator {
                 self.regs.handle_arithmetic_result_u16(result);
             }
             _ => {
-                println!("{}", mod_rm.register_destination());
+                debug!("[cpu] {}", mod_rm.register_destination());
                 unreachable!()
             }
         }
@@ -733,15 +744,15 @@ impl Emulator {
             0xFC => self.set_direction_flag(false),
             0xFF => self.op_0xff(),
             nr => {
-                println!("unknown opcode {:x}", nr);
+                debug!("[cpu] unknown opcode {:x}", nr);
                 Err(EmulatorError::InvalidOpcode)
             }
         }
     }
 
     pub fn step(&mut self) {
-        println!(
-            "Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
+        debug!(
+            "[cpu] Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}",
             self.regs.read_segment(Registers::REG_CS),
             self.regs.ip,
             self.regs.read_gpr_16(Registers::REG_AX),

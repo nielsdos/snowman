@@ -15,7 +15,6 @@ use std::{panic, process, thread};
 
 mod atom_table;
 mod bitmap_allocator;
-mod byte_string;
 mod constants;
 mod emulated_gdi;
 mod emulated_kernel;
@@ -25,6 +24,7 @@ mod emulator;
 mod emulator_accessor;
 mod emulator_error;
 mod executable;
+mod heap_byte_string;
 mod memory;
 mod mod_rm;
 mod module;

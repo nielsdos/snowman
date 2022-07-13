@@ -2,7 +2,7 @@ use crate::atom_table::AtomTable;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
-use crate::EmulatorError;
+use crate::{debug, EmulatorError};
 
 pub struct EmulatedUser {
     // TODO: do we need the table to be here, or globally available, and what protections need to exist in case of global availability?
@@ -17,7 +17,7 @@ impl EmulatedUser {
     }
 
     fn init_app(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("INIT APP {:x}", accessor.word_argument(0)?);
+        debug!("[user] INIT APP {:x}", accessor.word_argument(0)?);
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
     }
@@ -61,7 +61,7 @@ impl EmulatedUser {
     fn show_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let cmd_show = accessor.word_argument(0)?;
         let h_wnd = accessor.word_argument(1)?;
-        println!("SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
+        debug!("[user] SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
         // TODO
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
@@ -69,7 +69,7 @@ impl EmulatedUser {
 
     fn update_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let h_wnd = accessor.word_argument(0)?;
-        println!("UPDATE WINDOW {:x}", h_wnd);
+        debug!("[user] UPDATE WINDOW {:x}", h_wnd);
         // TODO
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
@@ -120,8 +120,8 @@ impl EmulatedUser {
         let msg_filter_min = accessor.word_argument(1)?;
         let h_wnd = accessor.word_argument(2)?;
         let msg = accessor.pointer_argument(3)?;
-        println!(
-            "GET MESSAGE {:x} {:x} {:x} {:x}",
+        debug!(
+            "[user] GET MESSAGE {:x} {:x} {:x} {:x}",
             msg, h_wnd, msg_filter_min, msg_filter_max
         );
         // TODO
@@ -145,7 +145,7 @@ impl EmulatedUser {
     fn load_cursor(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let cursor_name = accessor.pointer_argument(0)?;
         let h_instance = accessor.word_argument(2)?;
-        println!("LOAD CURSOR {:x} {:x}", h_instance, cursor_name);
+        debug!("[user] LOAD CURSOR {:x} {:x}", h_instance, cursor_name);
 
         // TODO: this now always returns NULL to indicate failure
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
@@ -154,7 +154,7 @@ impl EmulatedUser {
 
     fn get_system_metrics(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let metric = accessor.word_argument(0)?;
-        println!("GET SYSTEM METRICS {:x}", metric);
+        debug!("[user] GET SYSTEM METRICS {:x}", metric);
         // 0x16 = 1 if debug version is installed, 0 otherwise
         if metric == 0x16 {
             accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);

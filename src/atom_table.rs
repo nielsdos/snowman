@@ -1,12 +1,12 @@
 use crate::bitmap_allocator::BitmapAllocator;
-use crate::byte_string::ByteString;
+use crate::heap_byte_string::HeapByteString;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Atom(u16);
 
 pub struct AtomTable {
-    internal_table: HashMap<Atom, ByteString>,
+    internal_table: HashMap<Atom, HeapByteString>,
     allocator: BitmapAllocator,
 }
 
@@ -34,7 +34,7 @@ impl AtomTable {
         self.allocator.allocate().map(|value| Atom(value as u16))
     }
 
-    pub fn register_atom(&mut self, string: ByteString) -> Option<Atom> {
+    pub fn register_atom(&mut self, string: HeapByteString) -> Option<Atom> {
         let atom = self.allocate_atom()?;
         println!("REGISTER ATOM: {:?} => {:?}", atom, string);
         self.internal_table.insert(atom, string);
