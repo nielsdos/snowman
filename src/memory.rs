@@ -49,6 +49,12 @@ impl Memory {
         }
     }
 
+    pub fn flat_pointer_read(&self, offset: u32) -> Result<u32, EmulatorError> {
+        let segment = self.read_16(offset + 2)?;
+        let offset = self.read_16(offset)?;
+        Ok(((segment as u32) << 4) + (offset as u32))
+    }
+
     pub fn read_32(&self, address: u32) -> Result<u32, EmulatorError> {
         // TODO: bounds check
         Ok(u32_from_slice(&self.bytes, address as usize))

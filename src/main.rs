@@ -27,6 +27,9 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
+mod atom_table;
+mod bitmap_allocator;
+mod byte_string;
 
 struct MZResult {
     pub ne_header_offset: usize,

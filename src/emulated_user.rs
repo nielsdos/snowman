@@ -1,13 +1,19 @@
+use crate::atom_table::AtomTable;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::EmulatorError;
 
-pub struct EmulatedUser {}
+pub struct EmulatedUser {
+    // TODO: do we need the table to be here, or globally available, and what protections need to exist in case of global availability?
+    user_atom_table: AtomTable,
+}
 
 impl EmulatedUser {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            user_atom_table: AtomTable::new(),
+        }
     }
 
     fn init_app(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
@@ -56,11 +62,28 @@ impl EmulatedUser {
         Ok(())
     }
 
-    fn register_class(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        println!("REGISTER CLASS {:x}", accessor.pointer_argument(0)?);
-        // TODO: should return atom number, 0 indicates failure
-        // TODO: now it just fakes a success with atom 1
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+    fn register_class(&mut self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let wnd_class_ptr = accessor.pointer_argument(0)?;
+        // TODO: register the other stuff too...
+        let wnd_class_style = accessor.memory().read_16(wnd_class_ptr)?;
+        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 2)?;
+        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr + 4)?;
+        let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr + 6)?;
+        let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr + 8)?;
+        let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
+        let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr + 12)?;
+        let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr + 14)?;
+        let wnd_class_background = accessor.memory().read_16(wnd_class_ptr + 16)?;
+        let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 18)?;
+        let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
+
+        let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
+        if let Some(atom) = self.user_atom_table.register_atom(cloned_class_name) {
+            accessor.regs_mut().write_gpr_16(Registers::REG_AX, atom.as_u16());
+        } else {
+            accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        }
+
         Ok(())
     }
 
@@ -140,7 +163,7 @@ impl EmulatedUser {
     }
 
     pub fn syscall(
-        &self,
+        &mut self,
         nr: u16,
         emulator_accessor: EmulatorAccessor,
     ) -> Result<(), EmulatorError> {
