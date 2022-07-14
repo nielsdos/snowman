@@ -1,4 +1,4 @@
-use crate::bitmap_allocator::BitmapAllocator;
+use crate::bitvector_allocator::BitVectorAllocator;
 use std::collections::HashMap;
 use std::hash::Hash;
 use crate::byte_string::HeapByteString;
@@ -9,7 +9,7 @@ pub trait GenericHandle: Copy + Clone + Eq + Hash + PartialEq + From<u16> {
 
 pub struct GenericHandleTable<K: GenericHandle, V> {
     internal_table: HashMap<K, V>,
-    allocator: BitmapAllocator,
+    allocator: BitVectorAllocator,
 }
 
 impl<K: GenericHandle, V> GenericHandleTable<K, V> {
@@ -18,7 +18,7 @@ impl<K: GenericHandle, V> GenericHandleTable<K, V> {
             internal_table: HashMap::new(),
             // Note: we probably don't need all 65536 atoms to be available?
             //       I capped it at 10K for now...
-            allocator: BitmapAllocator::new(10_000, false),
+            allocator: BitVectorAllocator::new(10_000, false),
         }
     }
 

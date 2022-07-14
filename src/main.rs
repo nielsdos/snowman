@@ -11,10 +11,13 @@ use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
 use std::collections::HashMap;
-use std::{panic, process, thread};
+use std::{process, thread};
+use std::sync::Mutex;
+use crate::screen::Screen;
+use crate::window_manager::WindowManager;
 
 mod atom_table;
-mod bitmap_allocator;
+mod bitvector_allocator;
 mod byte_string;
 mod constants;
 mod emulated_gdi;
@@ -31,19 +34,15 @@ mod mod_rm;
 mod module;
 mod registers;
 mod util;
+mod window_manager;
+mod screen;
+mod bitmap;
 
 struct MZResult {
     pub ne_header_offset: usize,
 }
 
-fn main() {
-    let orig_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        // invoke the default handler and exit the process
-        orig_hook(panic_info);
-        process::exit(1);
-    }));
-
+fn main() -> Result<(), String> {
     // Start one executable
     let exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
@@ -52,7 +51,11 @@ fn main() {
         let path = "../Win16asm/hw.exe";
         start_executable(path);
     });
-    exe.join().expect("join");
+
+    let window_manager = Mutex::<WindowManager>::new(WindowManager::new());
+    let mut screen = Screen::new(&window_manager)?;
+    screen.window_loop();
+    Ok(())
 }
 
 fn start_executable(path: &str) {

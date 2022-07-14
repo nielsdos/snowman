@@ -1,10 +1,10 @@
 use std::mem::size_of;
 
-pub struct BitmapAllocator {
+pub struct BitVectorAllocator {
     bits: Box<[usize]>,
 }
 
-impl BitmapAllocator {
+impl BitVectorAllocator {
     pub fn new(nr_bits: usize, is_zero_valid: bool) -> Self {
         let mut bits = vec![usize::MAX; (nr_bits + size_of::<usize>() - 1) / size_of::<usize>()]
             .into_boxed_slice();

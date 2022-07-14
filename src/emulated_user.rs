@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
 use crate::atom_table::AtomTable;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle, HandleTable};
@@ -184,6 +186,11 @@ impl EmulatedUser {
             "[user] GET MESSAGE {:x} {:x} {:x} {:x}",
             msg, h_wnd, msg_filter_min, msg_filter_max
         );
+        // TODO: this is to prevent the application from exiting
+        loop {
+            thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        }
+
         // TODO
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
