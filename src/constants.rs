@@ -13,3 +13,7 @@ pub const WF_ENHANCED: u16 = 0x20;
 pub const WF_PAGING: u16 = 0x800;
 pub const WF_PMODE: u16 = 0x1;
 pub const WF_STANDARD: u16 = 0x10;
+
+// Window messages
+pub const WM_CREATE: u16 = 0x01;
+pub const WM_PAINT: u16 = 0x0f;

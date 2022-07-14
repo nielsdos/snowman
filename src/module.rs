@@ -34,6 +34,13 @@ impl BaseModule {
         memory.write_8(index, data)
     }
 
+    pub fn write_syscall_proc_return_trampoline(&self, memory: &mut Memory) -> Result<(), EmulatorError> {
+        // pop ax
+        self.write_syscall_dispatch_byte(memory, 0x58)?;
+        // ret
+        self.write_syscall_dispatch_byte(memory, 0xC3)
+    }
+
     fn write_syscall_dispatch(
         &self,
         memory: &mut Memory,
@@ -120,7 +127,7 @@ impl Module for UserModule {
             5 | 124 | 179 => 2,
             42 | 57 => 4,
             173 => 6,
-            108 | 176 => 10,
+            107 | 108 | 176 => 10,
             87 => 12,
             41 => 30,
             _ => 0,

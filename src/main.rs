@@ -564,6 +564,11 @@ fn process_file_ne(
 
     let mut memory = Memory::new();
 
+    // Setup default trampolines
+    for module in &module_reference_table.modules {
+        module.base_module().write_syscall_proc_return_trampoline(&mut memory);
+    }
+
     // TODO: handle all segments (including 0 segment rules)
     let data_segment = &segment_table[ds as usize - 1];
     let code_segment = &segment_table[cs as usize - 1];
@@ -576,14 +581,14 @@ fn process_file_ne(
         data_segment.length_of_segment_in_file as usize,
     )?;
     memory
-        .copy_from(code_bytes, 0x4000)
+        .copy_from(code_bytes, 0)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
     memory
         .copy_from(data_bytes, 0x123 * 0x10)
         .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: data offset & segment
     perform_relocations(
         &mut memory,
-        0x4000,
+        0,
         &module_reference_table,
         &entry_table,
         code_segment,
@@ -607,7 +612,7 @@ fn process_file_ne(
         memory,
         0x123,
         0,
-        ip + 0x4000,
+        ip,
         emulated_kernel,
         emulated_user,
         emulated_gdi,

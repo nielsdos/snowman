@@ -9,6 +9,7 @@ use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::{debug, EmulatorError, WindowManager};
 use crate::byte_string::HeapByteString;
+use crate::constants::{WM_CREATE, WM_PAINT};
 use crate::window_manager::{ProcessId, WindowIdentifier};
 
 #[allow(dead_code)]
@@ -25,8 +26,14 @@ struct WindowClass {
     menu_class_name: Option<HeapByteString>,
 }
 
+#[derive(Copy, Clone)]
+struct UserWindow {
+    proc_segment: u16,
+    proc_offset: u16,
+}
+
 enum UserObject {
-    Window(),
+    Window(UserWindow),
 }
 
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
@@ -83,18 +90,23 @@ impl<'a> EmulatedUser<'a> {
         // TODO: support atom lookup here (that's the case if segment == 0)
         // TODO: avoid allocation in the future for just looking up strings
         if let Some(class) = self.window_classes.get(&accessor.clone_string(class_name)?) {
-            let window_handle = self.objects.register(UserObject::Window() /* TODO */).unwrap_or(Handle::null());
+            let user_window = UserWindow {
+                proc_segment: class.proc_segment,
+                proc_offset: class.proc_offset,
+            };
+            let window_handle = self.objects.register(UserObject::Window(user_window)).unwrap_or(Handle::null());
             if window_handle != Handle::null() {
                 self.window_manager().create_window(WindowIdentifier {
                     window_handle,
                     process_id: self.process_id(),
                 }, x, y, width, height);
-                // TODO: send WM_CREATE, probably bypassing the queue?
+                accessor.regs_mut().write_gpr_16(Registers::REG_AX, window_handle.as_u16());
+                // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
+                self.call_wndproc_sync(&mut accessor, &user_window, window_handle, WM_CREATE, 0, 0);
+                return Ok(())
             }
-            accessor.regs_mut().write_gpr_16(Registers::REG_AX, window_handle.as_u16());
-        } else {
-            accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         }
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
     }
 
@@ -112,7 +124,7 @@ impl<'a> EmulatedUser<'a> {
         let h_wnd = accessor.word_argument(1)?;
         debug!("[user] SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
         let success = match self.objects.get(h_wnd.into()) {
-            Some(UserObject::Window()) => {
+            Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
                 self.window_manager().show_window(WindowIdentifier { window_handle: h_wnd.into(), process_id: self.process_id() });
                 true
@@ -127,8 +139,9 @@ impl<'a> EmulatedUser<'a> {
         let h_wnd = accessor.word_argument(0)?;
         debug!("[user] UPDATE WINDOW {:x}", h_wnd);
         let success = match self.objects.get(h_wnd.into()) {
-            Some(UserObject::Window()) => {
-                // TODO: send WM_PAINT if update region is non-empty, bypassing the queue
+            Some(UserObject::Window(user_window)) => {
+                // TODO: only do this if update region is non-empty?
+                self.call_wndproc_sync(&mut accessor, &user_window, h_wnd.into(), WM_PAINT, 0, 0);
                 true
             }
             None => false,
@@ -140,8 +153,8 @@ impl<'a> EmulatedUser<'a> {
     fn register_class(&mut self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let wnd_class_ptr = accessor.pointer_argument(0)?;
         let wnd_class_style = accessor.memory().read_16(wnd_class_ptr)?;
-        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 2)?;
-        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr + 4)?;
+        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr + 2)?;
+        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 4)?;
         let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr + 6)?;
         let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr + 8)?;
         let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
@@ -238,11 +251,21 @@ impl<'a> EmulatedUser<'a> {
         Ok(())
     }
 
+    fn call_wndproc_sync(&self, accessor: &mut EmulatorAccessor, window: &UserWindow, h_wnd: Handle, message: u16, w_param: u16, l_param: u32) -> Result<(), EmulatorError> {
+        accessor.far_call_into_proc_setup()?;
+        accessor.push_16(h_wnd.as_u16())?;
+        accessor.push_16(message)?;
+        accessor.push_16(w_param)?;
+        accessor.push_16((l_param >> 16) as u16)?;
+        accessor.push_16(l_param as u16)?;
+        accessor.far_call_into_proc_execute(window.proc_segment, window.proc_offset)
+    }
+
     fn get_system_metrics(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let metric = accessor.word_argument(0)?;
         debug!("[user] GET SYSTEM METRICS {:x}", metric);
-        // 0x16 = 1 if debug version is installed, 0 otherwise
         if metric == 0x16 {
+            // 1 if debug version is installed, 0 otherwise
             accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         } else {
             // TODO: the others
@@ -263,6 +286,16 @@ impl<'a> EmulatedUser<'a> {
         Ok(())
     }
 
+    fn def_window_proc(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let l_param = accessor.dword_argument(0)?;
+        let w_param = accessor.word_argument(2)?;
+        let msg = accessor.word_argument(3)?;
+        let h_wnd = accessor.word_argument(4)?;
+        debug!("[user] DEF WINDOW PROC {:x} {:x} {:x} {:x}", h_wnd, msg, w_param, l_param);
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        Ok(())
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
@@ -274,6 +307,7 @@ impl<'a> EmulatedUser<'a> {
             42 => self.show_window(emulator_accessor),
             57 => self.register_class(emulator_accessor),
             87 => self.dialog_box(emulator_accessor),
+            107 => self.def_window_proc(emulator_accessor),
             108 => self.get_message(emulator_accessor),
             124 => self.update_window(emulator_accessor),
             173 => self.load_cursor(emulator_accessor),

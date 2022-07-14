@@ -42,10 +42,11 @@ impl Registers {
 
     pub fn new(ds: u16, cs: u16, ip: u16) -> Self {
         let mut gpr = [0; 8];
-        gpr[Self::REG_SP as usize] = 1024; // TODO
+        gpr[Self::REG_SP as usize] = 0x4000; // TODO
         let mut segments = [0; 8];
         segments[Self::REG_CS as usize] = cs;
         segments[Self::REG_DS as usize] = ds;
+        segments[Self::REG_SS as usize] = ds;
         Self {
             ip,
             gpr,
