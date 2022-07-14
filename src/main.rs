@@ -12,7 +12,8 @@ use crate::util::{
 };
 use std::collections::HashMap;
 use std::{process, thread};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use sdl2::video::Window;
 use crate::screen::Screen;
 use crate::window_manager::WindowManager;
 
@@ -43,25 +44,27 @@ struct MZResult {
 }
 
 fn main() -> Result<(), String> {
+    let window_manager = Arc::new(Mutex::<WindowManager>::new(WindowManager::new()));
+
     // Start one executable
+    let window_manager_clone = window_manager.clone();
     let exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
         //let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";
         let path = "../Win16asm/hw.exe";
-        start_executable(path);
+        start_executable(path, &window_manager_clone);
     });
 
-    let window_manager = Mutex::<WindowManager>::new(WindowManager::new());
-    let mut screen = Screen::new(&window_manager)?;
+    let mut screen = Screen::new(window_manager)?;
     screen.window_loop();
     Ok(())
 }
 
-fn start_executable(path: &str) {
+fn start_executable(path: &str, window_manager: &Mutex<WindowManager>) {
     let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
-    println!("{:?}", process_file(&mut executable));
+    println!("{:?}", process_file(&mut executable, window_manager));
 }
 
 fn process_file_mz(executable: &Executable) -> Result<MZResult, ExecutableFormatError> {
@@ -500,6 +503,7 @@ fn perform_relocations(
 fn process_file_ne(
     executable: &mut Executable,
     ne_header_offset: usize,
+    window_manager: &Mutex<WindowManager>
 ) -> Result<(), ExecutableFormatError> {
     let old_cursor = executable.seek_from_start(ne_header_offset)?;
     executable.validate_magic_id(0, b"NE")?;
@@ -596,7 +600,7 @@ fn process_file_ne(
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new();
+    let emulated_user = EmulatedUser::new(window_manager);
     let emulated_gdi = EmulatedGdi::new();
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
@@ -615,7 +619,7 @@ fn process_file_ne(
     Ok(())
 }
 
-fn process_file(executable: &mut Executable) -> Result<(), ExecutableFormatError> {
+fn process_file(executable: &mut Executable, window_manager: &Mutex<WindowManager>) -> Result<(), ExecutableFormatError> {
     let mz_result = process_file_mz(executable)?;
-    process_file_ne(executable, mz_result.ne_header_offset)
+    process_file_ne(executable, mz_result.ne_header_offset, window_manager)
 }

@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use sdl2::event::Event;
@@ -10,14 +10,18 @@ use sdl2::Sdl;
 use crate::bitmap::Bitmap;
 use crate::window_manager::WindowManager;
 
-pub struct Screen<'a> {
-    sdl_context: Sdl,
+pub struct ScreenCanvas {
     canvas: WindowCanvas,
-    window_manager: &'a Mutex<WindowManager>,
 }
 
-impl<'a> Screen<'a> {
-    pub fn new(window_manager: &'a Mutex<WindowManager>) -> Result<Self, String> {
+pub struct Screen {
+    sdl_context: Sdl,
+    canvas: ScreenCanvas,
+    window_manager: Arc<Mutex<WindowManager>>,
+}
+
+impl Screen {
+    pub fn new(window_manager: Arc<Mutex<WindowManager>>) -> Result<Self, String> {
         // Setup window
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
@@ -29,7 +33,9 @@ impl<'a> Screen<'a> {
 
         Ok(Self {
             sdl_context,
-            canvas,
+            canvas: ScreenCanvas {
+                canvas,
+            },
             window_manager,
         })
     }
@@ -38,8 +44,8 @@ impl<'a> Screen<'a> {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
         // TODO: be more efficient than always redrawing everything
         'running: loop {
-            self.canvas.set_draw_color(Color::RGB(0, 0, 0));
-            self.canvas.clear();
+            self.canvas.canvas.set_draw_color(Color::RGB(0, 0, 0));
+            self.canvas.canvas.clear();
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit {..} |
@@ -50,13 +56,15 @@ impl<'a> Screen<'a> {
                 }
             }
             {
-                self.window_manager.lock().unwrap().paint(self);
+                self.window_manager.lock().unwrap().paint(&mut self.canvas);
             }
-            self.canvas.present();
+            self.canvas.canvas.present();
             thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
         }
     }
+}
 
+impl ScreenCanvas {
     pub fn blit_bitmap(&mut self, x: u16, y: u16, bitmap: &Bitmap) {
         let top_left = Point::new(x as i32, y as i32);
 

@@ -12,23 +12,23 @@ use crate::mod_rm::ModRM;
 use crate::registers::Registers;
 use crate::{debug, EmulatedUser};
 
-pub struct Emulator {
+pub struct Emulator<'a> {
     regs: Registers,
     memory: Memory,
     emulated_kernel: EmulatedKernel,
-    emulated_user: EmulatedUser,
+    emulated_user: EmulatedUser<'a>,
     emulated_gdi: EmulatedGdi,
     emulated_keyboard: EmulatedKeyboard,
 }
 
-impl Emulator {
+impl<'a> Emulator<'a> {
     pub fn new(
         memory: Memory,
         ds: u16,
         cs: u16,
         ip: u16,
         emulated_kernel: EmulatedKernel,
-        emulated_user: EmulatedUser,
+        emulated_user: EmulatedUser<'a>,
         emulated_gdi: EmulatedGdi,
         emulated_keyboard: EmulatedKeyboard,
     ) -> Self {

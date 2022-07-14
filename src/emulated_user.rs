@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 use crate::atom_table::AtomTable;
@@ -6,8 +7,9 @@ use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle, HandleTable};
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
-use crate::{debug, EmulatorError};
+use crate::{debug, EmulatorError, WindowManager};
 use crate::byte_string::HeapByteString;
+use crate::window_manager::{ProcessId, WindowIdentifier};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -28,18 +30,20 @@ enum UserObject {
 }
 
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
-pub struct EmulatedUser {
+pub struct EmulatedUser<'a> {
     user_atom_table: AtomTable,
     window_classes: HashMap<HeapByteString, WindowClass>,
     objects: HandleTable<UserObject>,
+    window_manager: &'a Mutex<WindowManager>,
 }
 
-impl EmulatedUser {
-    pub fn new() -> Self {
+impl<'a> EmulatedUser<'a> {
+    pub fn new(window_manager: &'a Mutex<WindowManager>) -> Self {
         Self {
             user_atom_table: AtomTable::new(),
             window_classes: HashMap::new(),
             objects: HandleTable::new(),
+            window_manager,
         }
     }
 
@@ -79,13 +83,28 @@ impl EmulatedUser {
         // TODO: support atom lookup here (that's the case if segment == 0)
         // TODO: avoid allocation in the future for just looking up strings
         if let Some(class) = self.window_classes.get(&accessor.clone_string(class_name)?) {
-            let handle = self.objects.register(UserObject::Window() /* TODO */).unwrap_or(Handle::null());
-            // TODO: send WM_CREATE
-            accessor.regs_mut().write_gpr_16(Registers::REG_AX, handle.as_u16());
+            let window_handle = self.objects.register(UserObject::Window() /* TODO */).unwrap_or(Handle::null());
+            if window_handle != Handle::null() {
+                self.window_manager().create_window(WindowIdentifier {
+                    window_handle,
+                    process_id: self.process_id(),
+                }, x, y, width, height);
+                // TODO: send WM_CREATE, probably bypassing the queue?
+            }
+            accessor.regs_mut().write_gpr_16(Registers::REG_AX, window_handle.as_u16());
         } else {
             accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         }
         Ok(())
+    }
+
+    fn window_manager(&self) -> MutexGuard<'_, WindowManager> {
+        self.window_manager.lock().unwrap()
+    }
+
+    fn process_id(&self) -> ProcessId {
+        // TODO
+        ProcessId::null()
     }
 
     fn show_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
@@ -95,7 +114,7 @@ impl EmulatedUser {
         let success = match self.objects.get(h_wnd.into()) {
             Some(UserObject::Window()) => {
                 // TODO: do something with cmd_show
-                // TODO
+                self.window_manager().show_window(WindowIdentifier { window_handle: h_wnd.into(), process_id: self.process_id() });
                 true
             }
             None => false,
@@ -109,7 +128,7 @@ impl EmulatedUser {
         debug!("[user] UPDATE WINDOW {:x}", h_wnd);
         let success = match self.objects.get(h_wnd.into()) {
             Some(UserObject::Window()) => {
-                // TODO: update window
+                // TODO: send WM_PAINT if update region is non-empty, bypassing the queue
                 true
             }
             None => false,
