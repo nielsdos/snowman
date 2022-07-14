@@ -88,6 +88,8 @@ impl WindowManager {
     }
 
     pub fn paint_bitmap_for(&mut self, identifier: WindowIdentifier) -> Option<&mut Bitmap> {
-        self.windows.get_mut(&identifier).map(|window| &mut window.front_bitmap)
+        self.windows
+            .get_mut(&identifier)
+            .map(|window| &mut window.front_bitmap)
     }
 }

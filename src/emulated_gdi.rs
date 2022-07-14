@@ -1,9 +1,9 @@
-use std::sync::{Mutex, MutexGuard};
 use crate::emulator_accessor::EmulatorAccessor;
-use crate::registers::Registers;
-use crate::{debug, EmulatorError, ObjectEnvironment};
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::GdiObject;
+use crate::registers::Registers;
+use crate::{debug, EmulatorError, ObjectEnvironment};
+use std::sync::{Mutex, MutexGuard};
 
 pub struct EmulatedGdi<'a> {
     objects: &'a Mutex<ObjectEnvironment<'a>>,
@@ -11,9 +11,7 @@ pub struct EmulatedGdi<'a> {
 
 impl<'a> EmulatedGdi<'a> {
     pub fn new(objects: &'a Mutex<ObjectEnvironment<'a>>) -> Self {
-        Self {
-            objects,
-        }
+        Self { objects }
     }
 
     fn objects(&self) -> MutexGuard<'_, ObjectEnvironment<'a>> {
@@ -84,10 +82,20 @@ impl<'a> EmulatedGdi<'a> {
     fn create_solid_brush(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         // TODO: do we have to take into account the alpha channel?
         let color = accessor.dword_argument(0)?;
-        debug!("CREATE SOLID BRUSH {:x} {:?}", color, crate::bitmap::Color::from(color));
+        debug!(
+            "CREATE SOLID BRUSH {:x} {:?}",
+            color,
+            crate::bitmap::Color::from(color)
+        );
         let color = crate::bitmap::Color::from(color);
-        let handle = self.objects().gdi.register(GdiObject::SolidBrush(color)).unwrap_or(Handle::null());
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, handle.as_u16());
+        let handle = self
+            .objects()
+            .gdi
+            .register(GdiObject::SolidBrush(color))
+            .unwrap_or(Handle::null());
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, handle.as_u16());
         Ok(())
     }
 
@@ -95,7 +103,10 @@ impl<'a> EmulatedGdi<'a> {
         // TODO: which objects may get deleted?
         let handle = accessor.word_argument(0)?;
         // TODO: check if it is selected into a DC, in that case: fail
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, self.objects().gdi.deregister(handle.into()) as u16);
+        accessor.regs_mut().write_gpr_16(
+            Registers::REG_AX,
+            self.objects().gdi.deregister(handle.into()) as u16,
+        );
         Ok(())
     }
 

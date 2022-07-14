@@ -7,6 +7,7 @@ use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
 use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
+use crate::object_environment::ObjectEnvironment;
 use crate::screen::Screen;
 use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
@@ -15,7 +16,6 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use crate::object_environment::ObjectEnvironment;
 
 mod atom_table;
 mod bitmap;
@@ -34,11 +34,11 @@ mod handle_table;
 mod memory;
 mod mod_rm;
 mod module;
+mod object_environment;
 mod registers;
 mod screen;
 mod util;
 mod window_manager;
-mod object_environment;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -608,7 +608,7 @@ fn process_file_ne(
     .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
-    let objects = Mutex::new(ObjectEnvironment::new(&window_manager));
+    let objects = Mutex::new(ObjectEnvironment::new(window_manager));
     let emulated_kernel = EmulatedKernel::new();
     let emulated_user = EmulatedUser::new(&objects);
     let emulated_gdi = EmulatedGdi::new(&objects);

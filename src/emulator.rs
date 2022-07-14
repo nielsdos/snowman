@@ -288,7 +288,8 @@ impl<'a> Emulator<'a> {
         let mod_rm = self.read_ip_mod_rm()?;
         let result =
             self.read_mod_rm::<N>(mod_rm)? ^ self.regs.read_gpr::<N>(mod_rm.register_destination());
-        self.regs.write_gpr::<N>(mod_rm.register_destination(), result);
+        self.regs
+            .write_gpr::<N>(mod_rm.register_destination(), result);
         self.regs.handle_bitwise_result_u_generic::<N>(result);
         Ok(())
     }

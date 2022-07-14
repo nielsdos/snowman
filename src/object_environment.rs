@@ -1,8 +1,8 @@
-use std::sync::{Mutex, MutexGuard};
 use crate::bitmap::Color;
 use crate::handle_table::HandleTable;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
+use std::sync::{Mutex, MutexGuard};
 
 #[derive(Copy, Clone)]
 pub struct UserWindow {
