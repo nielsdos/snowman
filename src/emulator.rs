@@ -17,7 +17,7 @@ pub struct Emulator<'a> {
     memory: Memory,
     emulated_kernel: EmulatedKernel,
     emulated_user: EmulatedUser<'a>,
-    emulated_gdi: EmulatedGdi,
+    emulated_gdi: EmulatedGdi<'a>,
     emulated_keyboard: EmulatedKeyboard,
 }
 
@@ -29,7 +29,7 @@ impl<'a> Emulator<'a> {
         ip: u16,
         emulated_kernel: EmulatedKernel,
         emulated_user: EmulatedUser<'a>,
-        emulated_gdi: EmulatedGdi,
+        emulated_gdi: EmulatedGdi<'a>,
         emulated_keyboard: EmulatedKeyboard,
     ) -> Self {
         Self {
@@ -272,13 +272,23 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
-    fn xor_r_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+    fn xor_r_rm_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with the above OR function
         let mod_rm = self.read_ip_mod_rm()?;
         let result =
             self.read_mod_rm::<N>(mod_rm)? ^ self.regs.read_gpr::<N>(mod_rm.register_destination());
         self.regs
             .write_gpr::<N>(mod_rm.register_destination(), result);
+        self.regs.handle_bitwise_result_u_generic::<N>(result);
+        Ok(())
+    }
+
+    fn xor_rm_r_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        // TODO: generalise with the above OR function
+        let mod_rm = self.read_ip_mod_rm()?;
+        let result =
+            self.read_mod_rm::<N>(mod_rm)? ^ self.regs.read_gpr::<N>(mod_rm.register_destination());
+        self.regs.write_gpr::<N>(mod_rm.register_destination(), result);
         self.regs.handle_bitwise_result_u_generic::<N>(result);
         Ok(())
     }
@@ -686,8 +696,9 @@ impl<'a> Emulator<'a> {
             0x3B => self.cmp_r16_rm16(),
             0x3C => self.cmp_r8_rm8(),
             0x3D => self.cmp_r16_imm16(Registers::REG_AX),
-            0x32 => self.xor_r_generic::<8>(),
-            0x33 => self.xor_r_generic::<16>(),
+            0x31 => self.xor_rm_r_generic::<8>(),
+            0x32 => self.xor_r_rm_generic::<8>(),
+            0x33 => self.xor_r_rm_generic::<16>(),
             0x50 => self.push_gpr_16(Registers::REG_AX),
             0x51 => self.push_gpr_16(Registers::REG_CX),
             0x52 => self.push_gpr_16(Registers::REG_DX),

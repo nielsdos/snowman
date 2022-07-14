@@ -15,6 +15,7 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use crate::object_environment::ObjectEnvironment;
 
 mod atom_table;
 mod bitmap;
@@ -37,6 +38,7 @@ mod registers;
 mod screen;
 mod util;
 mod window_manager;
+mod object_environment;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -606,9 +608,10 @@ fn process_file_ne(
     .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
+    let objects = Mutex::new(ObjectEnvironment::new(&window_manager));
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new(window_manager);
-    let emulated_gdi = EmulatedGdi::new();
+    let emulated_user = EmulatedUser::new(&objects);
+    let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
         memory,

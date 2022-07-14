@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
+use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWindow};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -26,31 +27,19 @@ struct WindowClass {
     menu_class_name: Option<HeapByteString>,
 }
 
-#[derive(Copy, Clone)]
-struct UserWindow {
-    proc_segment: u16,
-    proc_offset: u16,
-}
-
-enum UserObject {
-    Window(UserWindow),
-}
-
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
 pub struct EmulatedUser<'a> {
     user_atom_table: AtomTable,
     window_classes: HashMap<HeapByteString, WindowClass>,
-    objects: HandleTable<UserObject>,
-    window_manager: &'a Mutex<WindowManager>,
+    objects: &'a Mutex<ObjectEnvironment<'a>>,
 }
 
 impl<'a> EmulatedUser<'a> {
-    pub fn new(window_manager: &'a Mutex<WindowManager>) -> Self {
+    pub fn new(objects: &'a Mutex<ObjectEnvironment<'a>>) -> Self {
         Self {
             user_atom_table: AtomTable::new(),
             window_classes: HashMap::new(),
-            objects: HandleTable::new(),
-            window_manager,
+            objects,
         }
     }
 
@@ -95,11 +84,12 @@ impl<'a> EmulatedUser<'a> {
                 proc_offset: class.proc_offset,
             };
             let window_handle = self
-                .objects
+                .objects()
+                .user
                 .register(UserObject::Window(user_window))
                 .unwrap_or(Handle::null());
             if window_handle != Handle::null() {
-                self.window_manager().create_window(
+                self.objects().window_manager().create_window(
                     WindowIdentifier {
                         window_handle,
                         process_id: self.process_id(),
@@ -128,8 +118,8 @@ impl<'a> EmulatedUser<'a> {
         Ok(())
     }
 
-    fn window_manager(&self) -> MutexGuard<'_, WindowManager> {
-        self.window_manager.lock().unwrap()
+    fn objects(&self) -> MutexGuard<'_, ObjectEnvironment<'a>> {
+        self.objects.lock().unwrap()
     }
 
     fn process_id(&self) -> ProcessId {
@@ -141,10 +131,11 @@ impl<'a> EmulatedUser<'a> {
         let cmd_show = accessor.word_argument(0)?;
         let h_wnd = accessor.word_argument(1)?;
         debug!("[user] SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
-        let success = match self.objects.get(h_wnd.into()) {
+        let objects = self.objects();
+        let success = match objects.user.get(h_wnd.into()) {
             Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
-                self.window_manager().show_window(WindowIdentifier {
+                objects.window_manager().show_window(WindowIdentifier {
                     window_handle: h_wnd.into(),
                     process_id: self.process_id(),
                 });
@@ -161,9 +152,9 @@ impl<'a> EmulatedUser<'a> {
     fn update_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let h_wnd = accessor.word_argument(0)?;
         debug!("[user] UPDATE WINDOW {:x}", h_wnd);
-        let success = match self.objects.get(h_wnd.into()) {
+        let success = match self.objects().user.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => {
-                // TODO: only do this if update region is non-empty?
+                // TODO: only do this if update region is non-empty
                 self.call_wndproc_sync(&mut accessor, user_window, h_wnd.into(), WM_PAINT, 0, 0)?;
                 true
             }
@@ -178,16 +169,16 @@ impl<'a> EmulatedUser<'a> {
     fn register_class(&mut self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let wnd_class_ptr = accessor.pointer_argument(0)?;
         let wnd_class_style = accessor.memory().read_16(wnd_class_ptr)?;
-        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr + 2)?;
-        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 4)?;
-        let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr + 6)?;
-        let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr + 8)?;
-        let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
-        let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr + 12)?;
-        let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr + 14)?;
-        let wnd_class_h_background = accessor.memory().read_16(wnd_class_ptr + 16)?;
-        let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 18)?;
-        let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
+        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr.wrapping_add(2))?;
+        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr.wrapping_add(4))?;
+        let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr.wrapping_add(6))?;
+        let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr.wrapping_add(8))?;
+        let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr.wrapping_add(10))?;
+        let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr.wrapping_add(12))?;
+        let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr.wrapping_add(14))?;
+        let wnd_class_h_background = accessor.memory().read_16(wnd_class_ptr.wrapping_add(16))?;
+        let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr.wrapping_add(18))?;
+        let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr.wrapping_add(22))?;
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
         if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone()) {
@@ -341,6 +332,74 @@ impl<'a> EmulatedUser<'a> {
         Ok(())
     }
 
+    fn begin_paint(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let paint = accessor.pointer_argument(0)?;
+        let h_wnd = accessor.word_argument(2)?;
+        debug!(
+            "[user] BEGIN PAINT {:x} {:x}",
+            h_wnd, paint,
+        );
+        let mut objects = self.objects();
+        let display_device_handle_for_window = match objects.user.get(h_wnd.into()) {
+            Some(UserObject::Window(_)) => {
+                let window_identifier = WindowIdentifier {
+                    process_id: self.process_id(),
+                    window_handle: h_wnd.into(),
+                };
+                if let Some(handle) = objects.gdi.register(GdiObject::DC(window_identifier)) {
+                    accessor.memory_mut().write_16(paint, handle.as_u16())?;
+                    accessor.memory_mut().write_8(paint.wrapping_add(2), 0)?; // TODO: fErase
+                    accessor.memory_mut().write_16(paint.wrapping_add(2), 0)?;
+                    accessor.memory_mut().write_16(paint.wrapping_add(2), 0)?;
+                    accessor.memory_mut().write_16(paint.wrapping_add(2), 200)?; // TODO: rcPaint.right
+                    accessor.memory_mut().write_16(paint.wrapping_add(2), 200)?; // TODO: rcPaint.bottom
+                    handle.as_u16()
+                } else {
+                    0
+                }
+            }
+            None => 0,
+        };
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, display_device_handle_for_window);
+        Ok(())
+    }
+
+    fn end_paint(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let paint = accessor.pointer_argument(0)?;
+        let h_wnd = accessor.word_argument(2)?;
+        debug!(
+            "[user] END PAINT {:x} {:x}",
+            h_wnd, paint,
+        );
+        // TODO: this should probably cause a flip of the front and back bitmap for the given window
+        let handle = accessor.memory().read_16(paint)?;
+        self.objects().gdi.deregister(handle.into());
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        Ok(())
+    }
+
+    fn fill_rect(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+        let h_brush = accessor.word_argument(0)?;
+        let rect = accessor.pointer_argument(1)?;
+        let h_dc = accessor.word_argument(3)?;
+        debug!("[user] FILL RECT {:x} {:x} {:x}", h_dc, rect, h_brush);
+        let rect_left = accessor.memory().read_16(rect)?;
+        let rect_top = accessor.memory().read_16(rect.wrapping_add(2))?;
+        let rect_right = accessor.memory().read_16(rect.wrapping_add(4))?;
+        let rect_bottom = accessor.memory().read_16(rect.wrapping_add(6))?;
+        let objects = self.objects();
+        match (objects.gdi.get(h_dc.into()), objects.gdi.get(h_brush.into())) {
+            (Some(GdiObject::DC(window_identifier)), Some(GdiObject::SolidBrush(color))) => {
+                objects.window_manager()
+                    .paint_bitmap_for(*window_identifier)
+                    .map(|bitmap| bitmap.fill_rectangle(rect_left, rect_top, rect_right, rect_bottom, *color));
+            }
+            _ => {}
+        }
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        Ok(())
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
@@ -348,9 +407,12 @@ impl<'a> EmulatedUser<'a> {
     ) -> Result<(), EmulatorError> {
         match nr {
             5 => self.init_app(emulator_accessor),
+            39 => self.begin_paint(emulator_accessor),
+            40 => self.end_paint(emulator_accessor),
             41 => self.create_window(emulator_accessor),
             42 => self.show_window(emulator_accessor),
             57 => self.register_class(emulator_accessor),
+            81 => self.fill_rect(emulator_accessor),
             87 => self.dialog_box(emulator_accessor),
             107 => self.def_window_proc(emulator_accessor),
             108 => self.get_message(emulator_accessor),
