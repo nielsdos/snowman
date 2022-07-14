@@ -33,18 +33,10 @@ pub struct WindowManager {
 
 impl WindowManager {
     pub fn new() -> Self {
-        let mut wm = Self {
+        Self {
             window_stack: Vec::new(),
             windows: HashMap::new(),
-        };
-        // TODO: this is a test window
-        let test_identifier = WindowIdentifier {
-            process_id: ProcessId(1),
-            window_handle: Handle::null(),
-        };
-        wm.create_window(test_identifier, 10, 10, 50, 50);
-        wm.show_window(test_identifier);
-        wm
+        }
     }
 
     pub fn create_window(
@@ -93,5 +85,9 @@ impl WindowManager {
                 screen.blit_bitmap(window.x, window.y, &window.front_bitmap);
             }
         }
+    }
+
+    pub fn paint_bitmap_for(&mut self, identifier: WindowIdentifier) -> Option<&mut Bitmap> {
+        self.windows.get_mut(&identifier).map(|window| &mut window.front_bitmap)
     }
 }
