@@ -1,9 +1,9 @@
 use crate::bitmap_allocator::BitmapAllocator;
 use std::collections::HashMap;
 use std::hash::Hash;
+use crate::byte_string::HeapByteString;
 
-pub trait GenericHandle: Copy + Clone + Eq + Hash + PartialEq {
-    fn from(id: u16) -> Self;
+pub trait GenericHandle: Copy + Clone + Eq + Hash + PartialEq + From<u16> {
     fn as_u16(self) -> u16;
 }
 
@@ -35,16 +35,28 @@ impl<K: GenericHandle, V> GenericHandleTable<K, V> {
     pub fn deregister(&mut self, handle: K) -> bool {
         self.internal_table.remove(&handle).is_some()
     }
+
+    pub fn get(&self, handle: K) -> Option<&V> {
+        self.internal_table.get(&handle)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Handle(u16);
 
-impl GenericHandle for Handle {
+impl Handle {
+    pub const fn null() -> Self {
+        Self(0)
+    }
+}
+
+impl From<u16> for Handle {
     fn from(id: u16) -> Self {
         Self(id)
     }
+}
 
+impl GenericHandle for Handle {
     fn as_u16(self) -> u16 {
         self.0
     }

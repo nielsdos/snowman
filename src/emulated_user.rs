@@ -1,19 +1,43 @@
+use std::collections::HashMap;
 use crate::atom_table::AtomTable;
 use crate::emulator_accessor::EmulatorAccessor;
-use crate::handle_table::GenericHandle;
+use crate::handle_table::{GenericHandle, Handle, HandleTable};
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::{debug, EmulatorError};
+use crate::byte_string::HeapByteString;
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct WindowClass {
+    style: u16,
+    proc_segment: u16,
+    proc_offset: u16,
+    cls_extra: u16,
+    wnd_extra: u16,
+    h_icon: Handle,
+    h_cursor: Handle,
+    h_background: Handle,
+    menu_class_name: Option<HeapByteString>,
+}
+
+enum UserObject {
+    Window(),
+}
+
+// TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
 pub struct EmulatedUser {
-    // TODO: do we need the table to be here, or globally available, and what protections need to exist in case of global availability?
     user_atom_table: AtomTable,
+    window_classes: HashMap<HeapByteString, WindowClass>,
+    objects: HandleTable<UserObject>,
 }
 
 impl EmulatedUser {
     pub fn new() -> Self {
         Self {
             user_atom_table: AtomTable::new(),
+            window_classes: HashMap::new(),
+            objects: HandleTable::new(),
         }
     }
 
@@ -23,7 +47,7 @@ impl EmulatedUser {
         Ok(())
     }
 
-    fn create_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+    fn create_window(&mut self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let param = accessor.pointer_argument(0)?;
         let h_instance = accessor.word_argument(2)?;
         let h_menu = accessor.word_argument(3)?;
@@ -50,12 +74,15 @@ impl EmulatedUser {
             param
         );
 
-        debug_print_null_terminated_string(&accessor, class_name);
-        debug_print_null_terminated_string(&accessor, window_name);
-
-        // TODO: returns the window handle
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0x100);
-
+        // TODO: support atom lookup here (that's the case if segment == 0)
+        // TODO: avoid allocation in the future for just looking up strings
+        if let Some(class) = self.window_classes.get(&accessor.clone_string(class_name)?) {
+            let handle = self.objects.register(UserObject::Window() /* TODO */).unwrap_or(Handle::null());
+            // TODO: send WM_CREATE
+            accessor.regs_mut().write_gpr_16(Registers::REG_AX, handle.as_u16());
+        } else {
+            accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        }
         Ok(())
     }
 
@@ -63,22 +90,34 @@ impl EmulatedUser {
         let cmd_show = accessor.word_argument(0)?;
         let h_wnd = accessor.word_argument(1)?;
         debug!("[user] SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
-        // TODO
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        let success = match self.objects.get(h_wnd.into()) {
+            Some(UserObject::Window()) => {
+                // TODO: do something with cmd_show
+                // TODO
+                true
+            }
+            None => false,
+        };
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, success.into());
         Ok(())
     }
 
     fn update_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let h_wnd = accessor.word_argument(0)?;
         debug!("[user] UPDATE WINDOW {:x}", h_wnd);
-        // TODO
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
+        let success = match self.objects.get(h_wnd.into()) {
+            Some(UserObject::Window()) => {
+                // TODO: update window
+                true
+            }
+            None => false,
+        };
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, success.into());
         Ok(())
     }
 
     fn register_class(&mut self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let wnd_class_ptr = accessor.pointer_argument(0)?;
-        // TODO: register the other stuff too...
         let wnd_class_style = accessor.memory().read_16(wnd_class_ptr)?;
         let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 2)?;
         let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr + 4)?;
@@ -87,18 +126,38 @@ impl EmulatedUser {
         let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
         let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr + 12)?;
         let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr + 14)?;
-        let wnd_class_background = accessor.memory().read_16(wnd_class_ptr + 16)?;
+        let wnd_class_h_background = accessor.memory().read_16(wnd_class_ptr + 16)?;
         let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 18)?;
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
-        if let Some(atom) = self.user_atom_table.register(cloned_class_name) {
-            accessor
-                .regs_mut()
-                .write_gpr_16(Registers::REG_AX, atom.as_u16());
-        } else {
-            accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone()) {
+            let window_class = WindowClass {
+                style: wnd_class_style,
+                proc_segment: wnd_class_proc_segment,
+                proc_offset: wnd_class_proc_offset,
+                cls_extra: wnd_class_cls_extra,
+                wnd_extra: wnd_class_wnd_extra,
+                h_icon: wnd_class_h_icon.into(),
+                h_cursor: wnd_class_h_cursor.into(),
+                h_background: wnd_class_h_background.into(),
+                menu_class_name: if wnd_class_menu_name != 0 {
+                    Some(accessor.clone_string(wnd_class_menu_name)?)
+                } else { None },
+            };
+
+            debug!("[user] REGISTER CLASS SUCCESS {:?} => {:#?}", cloned_class_name, window_class);
+            if self.window_classes.insert(cloned_class_name, window_class).is_none() {
+                accessor
+                    .regs_mut()
+                    .write_gpr_16(Registers::REG_AX, atom.as_u16());
+                return Ok(());
+            }
+
+            self.user_atom_table.deregister(atom);
         }
+
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
 
         Ok(())
     }

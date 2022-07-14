@@ -7,11 +7,13 @@ pub struct Atom(u16);
 pub type AtomTable = GenericHandleTable<Atom, HeapByteString>;
 
 impl GenericHandle for Atom {
-    fn from(id: u16) -> Self {
-        Self(id)
-    }
-
     fn as_u16(self) -> u16 {
         self.0
+    }
+}
+
+impl From<u16> for Atom {
+    fn from(id: u16) -> Self {
+        Self(id)
     }
 }

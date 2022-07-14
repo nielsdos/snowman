@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct HeapByteString(Rc<[u8]>);
 
 impl HeapByteString {

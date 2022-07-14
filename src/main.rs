@@ -424,10 +424,6 @@ fn perform_relocations(
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
-                    println!(
-                        "import ordinal {}",
-                        import.index_into_module_reference_table
-                    );
                     // Relocate kernel system call
                     let module =
                         module_reference_table.module(import.index_into_module_reference_table)?;
