@@ -1,7 +1,6 @@
 use crate::bitvector_allocator::BitVectorAllocator;
 use std::collections::HashMap;
 use std::hash::Hash;
-use crate::byte_string::HeapByteString;
 
 pub trait GenericHandle: Copy + Clone + Eq + Hash + PartialEq + From<u16> {
     fn as_u16(self) -> u16;

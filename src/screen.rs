@@ -1,14 +1,14 @@
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use crate::bitmap::Bitmap;
+use crate::window_manager::WindowManager;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use sdl2::render::WindowCanvas;
 use sdl2::Sdl;
-use crate::bitmap::Bitmap;
-use crate::window_manager::WindowManager;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 pub struct ScreenCanvas {
     canvas: WindowCanvas,
@@ -25,7 +25,11 @@ impl Screen {
         // Setup window
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
-        let window = video_subsystem.window("GUI", 800, 600).position_centered().build().map_err(|e| e.to_string())?;
+        let window = video_subsystem
+            .window("Emulator screen", 800, 600)
+            .position_centered()
+            .build()
+            .map_err(|e| e.to_string())?;
         let mut canvas = window.into_canvas().build().unwrap();
         canvas.set_draw_color(Color::RGB(0, 255, 255));
         canvas.clear();
@@ -33,9 +37,7 @@ impl Screen {
 
         Ok(Self {
             sdl_context,
-            canvas: ScreenCanvas {
-                canvas,
-            },
+            canvas: ScreenCanvas { canvas },
             window_manager,
         })
     }
@@ -48,10 +50,11 @@ impl Screen {
             self.canvas.canvas.clear();
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit {..} |
-                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                        break 'running
-                    },
+                    Event::Quit { .. }
+                    | Event::KeyDown {
+                        keycode: Some(Keycode::Escape),
+                        ..
+                    } => break 'running,
                     _ => {}
                 }
             }
@@ -71,8 +74,11 @@ impl ScreenCanvas {
         for y in 0..bitmap.height() {
             for x in 0..bitmap.width() {
                 let pixel = bitmap.pixel_at_no_checks(x, y);
-                self.canvas.set_draw_color(Color::RGB(pixel.0, pixel.1, pixel.2));
-                self.canvas.draw_point(top_left.offset(x as i32, y as i32)).unwrap();
+                self.canvas
+                    .set_draw_color(Color::RGB(pixel.0, pixel.1, pixel.2));
+                self.canvas
+                    .draw_point(top_left.offset(x as i32, y as i32))
+                    .unwrap();
             }
         }
     }

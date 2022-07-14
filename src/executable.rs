@@ -8,6 +8,7 @@ pub enum ExecutableFormatError {
     OperatingSystem,
     SegmentIndex,
     SegmentOffset,
+    Memory,
 }
 
 pub struct Executable<'a> {

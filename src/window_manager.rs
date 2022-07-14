@@ -1,8 +1,7 @@
-use std::collections::HashMap;
 use crate::bitmap::Bitmap;
 use crate::handle_table::Handle;
-use crate::Screen;
 use crate::screen::ScreenCanvas;
+use std::collections::HashMap;
 
 struct Window {
     x: u16,
@@ -48,7 +47,14 @@ impl WindowManager {
         wm
     }
 
-    pub fn create_window(&mut self, identifier: WindowIdentifier, x: u16, y: u16, width: u16, height: u16) {
+    pub fn create_window(
+        &mut self,
+        identifier: WindowIdentifier,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    ) {
         // TODO: set sane limits for arguments?
         let number_or_default = |number: u16| {
             if number == 0x8000 {
@@ -61,10 +67,16 @@ impl WindowManager {
         // TODO: handle default values for x,y,w,h
         let width = number_or_default(width);
         let height = number_or_default(height);
-        self.windows.insert(identifier, Window {
-            x: number_or_default(x), y: number_or_default(y), width, height,
-            front_bitmap: Bitmap::new(width, height),
-        });
+        self.windows.insert(
+            identifier,
+            Window {
+                x: number_or_default(x),
+                y: number_or_default(y),
+                width,
+                height,
+                front_bitmap: Bitmap::new(width, height),
+            },
+        );
     }
 
     pub fn show_window(&mut self, identifier: WindowIdentifier) {

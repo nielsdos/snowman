@@ -1,16 +1,16 @@
-use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard};
-use std::thread;
-use std::time::Duration;
 use crate::atom_table::AtomTable;
+use crate::byte_string::HeapByteString;
+use crate::constants::{WM_CREATE, WM_PAINT};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle, HandleTable};
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
-use crate::{debug, EmulatorError, WindowManager};
-use crate::byte_string::HeapByteString;
-use crate::constants::{WM_CREATE, WM_PAINT};
 use crate::window_manager::{ProcessId, WindowIdentifier};
+use crate::{debug, EmulatorError, WindowManager};
+use std::collections::HashMap;
+use std::sync::{Mutex, MutexGuard};
+use std::thread;
+use std::time::Duration;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -94,16 +94,34 @@ impl<'a> EmulatedUser<'a> {
                 proc_segment: class.proc_segment,
                 proc_offset: class.proc_offset,
             };
-            let window_handle = self.objects.register(UserObject::Window(user_window)).unwrap_or(Handle::null());
+            let window_handle = self
+                .objects
+                .register(UserObject::Window(user_window))
+                .unwrap_or(Handle::null());
             if window_handle != Handle::null() {
-                self.window_manager().create_window(WindowIdentifier {
-                    window_handle,
-                    process_id: self.process_id(),
-                }, x, y, width, height);
-                accessor.regs_mut().write_gpr_16(Registers::REG_AX, window_handle.as_u16());
+                self.window_manager().create_window(
+                    WindowIdentifier {
+                        window_handle,
+                        process_id: self.process_id(),
+                    },
+                    x,
+                    y,
+                    width,
+                    height,
+                );
+                accessor
+                    .regs_mut()
+                    .write_gpr_16(Registers::REG_AX, window_handle.as_u16());
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
-                self.call_wndproc_sync(&mut accessor, &user_window, window_handle, WM_CREATE, 0, 0);
-                return Ok(())
+                self.call_wndproc_sync(
+                    &mut accessor,
+                    &user_window,
+                    window_handle,
+                    WM_CREATE,
+                    0,
+                    0,
+                )?;
+                return Ok(());
             }
         }
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
@@ -126,12 +144,17 @@ impl<'a> EmulatedUser<'a> {
         let success = match self.objects.get(h_wnd.into()) {
             Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
-                self.window_manager().show_window(WindowIdentifier { window_handle: h_wnd.into(), process_id: self.process_id() });
+                self.window_manager().show_window(WindowIdentifier {
+                    window_handle: h_wnd.into(),
+                    process_id: self.process_id(),
+                });
                 true
             }
             None => false,
         };
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, success.into());
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, success.into());
         Ok(())
     }
 
@@ -141,12 +164,14 @@ impl<'a> EmulatedUser<'a> {
         let success = match self.objects.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => {
                 // TODO: only do this if update region is non-empty?
-                self.call_wndproc_sync(&mut accessor, &user_window, h_wnd.into(), WM_PAINT, 0, 0);
+                self.call_wndproc_sync(&mut accessor, user_window, h_wnd.into(), WM_PAINT, 0, 0)?;
                 true
             }
             None => false,
         };
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, success.into());
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, success.into());
         Ok(())
     }
 
@@ -177,11 +202,20 @@ impl<'a> EmulatedUser<'a> {
                 h_background: wnd_class_h_background.into(),
                 menu_class_name: if wnd_class_menu_name != 0 {
                     Some(accessor.clone_string(wnd_class_menu_name)?)
-                } else { None },
+                } else {
+                    None
+                },
             };
 
-            debug!("[user] REGISTER CLASS SUCCESS {:?} => {:#?}", cloned_class_name, window_class);
-            if self.window_classes.insert(cloned_class_name, window_class).is_none() {
+            debug!(
+                "[user] REGISTER CLASS SUCCESS {:?} => {:#?}",
+                cloned_class_name, window_class
+            );
+            if self
+                .window_classes
+                .insert(cloned_class_name, window_class)
+                .is_none()
+            {
                 accessor
                     .regs_mut()
                     .write_gpr_16(Registers::REG_AX, atom.as_u16());
@@ -251,7 +285,15 @@ impl<'a> EmulatedUser<'a> {
         Ok(())
     }
 
-    fn call_wndproc_sync(&self, accessor: &mut EmulatorAccessor, window: &UserWindow, h_wnd: Handle, message: u16, w_param: u16, l_param: u32) -> Result<(), EmulatorError> {
+    fn call_wndproc_sync(
+        &self,
+        accessor: &mut EmulatorAccessor,
+        window: &UserWindow,
+        h_wnd: Handle,
+        message: u16,
+        w_param: u16,
+        l_param: u32,
+    ) -> Result<(), EmulatorError> {
         accessor.far_call_into_proc_setup()?;
         accessor.push_16(h_wnd.as_u16())?;
         accessor.push_16(message)?;
@@ -291,7 +333,10 @@ impl<'a> EmulatedUser<'a> {
         let w_param = accessor.word_argument(2)?;
         let msg = accessor.word_argument(3)?;
         let h_wnd = accessor.word_argument(4)?;
-        debug!("[user] DEF WINDOW PROC {:x} {:x} {:x} {:x}", h_wnd, msg, w_param, l_param);
+        debug!(
+            "[user] DEF WINDOW PROC {:x} {:x} {:x} {:x}",
+            h_wnd, msg, w_param, l_param
+        );
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
     }

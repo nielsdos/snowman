@@ -7,17 +7,17 @@ use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
 use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
+use crate::screen::Screen;
 use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
-use std::collections::HashMap;
-use std::{process, thread};
-use std::sync::{Arc, Mutex};
-use sdl2::video::Window;
-use crate::screen::Screen;
 use crate::window_manager::WindowManager;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 mod atom_table;
+mod bitmap;
 mod bitvector_allocator;
 mod byte_string;
 mod constants;
@@ -34,10 +34,9 @@ mod memory;
 mod mod_rm;
 mod module;
 mod registers;
+mod screen;
 mod util;
 mod window_manager;
-mod screen;
-mod bitmap;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -503,7 +502,7 @@ fn perform_relocations(
 fn process_file_ne(
     executable: &mut Executable,
     ne_header_offset: usize,
-    window_manager: &Mutex<WindowManager>
+    window_manager: &Mutex<WindowManager>,
 ) -> Result<(), ExecutableFormatError> {
     let old_cursor = executable.seek_from_start(ne_header_offset)?;
     executable.validate_magic_id(0, b"NE")?;
@@ -566,7 +565,10 @@ fn process_file_ne(
 
     // Setup default trampolines
     for module in &module_reference_table.modules {
-        module.base_module().write_syscall_proc_return_trampoline(&mut memory);
+        module
+            .base_module()
+            .write_syscall_proc_return_trampoline(&mut memory)
+            .map_err(|_| ExecutableFormatError::Memory)?;
     }
 
     // TODO: handle all segments (including 0 segment rules)
@@ -582,10 +584,10 @@ fn process_file_ne(
     )?;
     memory
         .copy_from(code_bytes, 0)
-        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: code offset & segment
+        .map_err(|_| ExecutableFormatError::Memory)?; // TODO: code offset & segment
     memory
         .copy_from(data_bytes, 0x123 * 0x10)
-        .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: data offset & segment
+        .map_err(|_| ExecutableFormatError::Memory)?; // TODO: data offset & segment
     perform_relocations(
         &mut memory,
         0,
@@ -593,7 +595,7 @@ fn process_file_ne(
         &entry_table,
         code_segment,
     )
-    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
     perform_relocations(
         &mut memory,
         0x1230,
@@ -601,7 +603,7 @@ fn process_file_ne(
         &entry_table,
         data_segment,
     )
-    .map_err(|_| ExecutableFormatError::HeaderSize)?; // TODO: also other relocations necessary
+    .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let emulated_kernel = EmulatedKernel::new();
@@ -624,7 +626,10 @@ fn process_file_ne(
     Ok(())
 }
 
-fn process_file(executable: &mut Executable, window_manager: &Mutex<WindowManager>) -> Result<(), ExecutableFormatError> {
+fn process_file(
+    executable: &mut Executable,
+    window_manager: &Mutex<WindowManager>,
+) -> Result<(), ExecutableFormatError> {
     let mz_result = process_file_mz(executable)?;
     process_file_ne(executable, mz_result.ne_header_offset, window_manager)
 }
