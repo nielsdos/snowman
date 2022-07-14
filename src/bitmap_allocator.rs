@@ -5,11 +5,13 @@ pub struct BitmapAllocator {
 }
 
 impl BitmapAllocator {
-    pub fn new(nr_bits: usize) -> Self {
-        Self {
-            bits: vec![usize::MAX; (nr_bits + size_of::<usize>() - 1) / size_of::<usize>()]
-                .into_boxed_slice(),
+    pub fn new(nr_bits: usize, is_zero_valid: bool) -> Self {
+        let mut bits = vec![usize::MAX; (nr_bits + size_of::<usize>() - 1) / size_of::<usize>()]
+            .into_boxed_slice();
+        if !is_zero_valid {
+            bits[0] &= !(1 << 0);
         }
+        Self { bits }
     }
 
     pub fn claim(&mut self, bit: usize) {

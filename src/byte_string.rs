@@ -1,9 +1,10 @@
 use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 
-pub struct HeapByteString(Box<[u8]>);
+pub struct HeapByteString(Rc<[u8]>);
 
 impl HeapByteString {
-    pub fn from(b: Box<[u8]>) -> Self {
+    pub fn from(b: Rc<[u8]>) -> Self {
         Self(b)
     }
 }

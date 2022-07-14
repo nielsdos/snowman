@@ -1,4 +1,4 @@
-use crate::heap_byte_string::HeapByteString;
+use crate::byte_string::HeapByteString;
 use crate::registers::Registers;
 use crate::{EmulatorError, Memory};
 
@@ -74,6 +74,6 @@ impl<'a> EmulatorAccessor<'a> {
             output.push(data);
             src_ptr += 1;
         }
-        Ok(HeapByteString::from(output.into_boxed_slice()))
+        Ok(HeapByteString::from(output.into()))
     }
 }

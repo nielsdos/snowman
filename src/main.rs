@@ -15,6 +15,7 @@ use std::{panic, process, thread};
 
 mod atom_table;
 mod bitmap_allocator;
+mod byte_string;
 mod constants;
 mod emulated_gdi;
 mod emulated_kernel;
@@ -24,7 +25,7 @@ mod emulator;
 mod emulator_accessor;
 mod emulator_error;
 mod executable;
-mod heap_byte_string;
+mod handle_table;
 mod memory;
 mod mod_rm;
 mod module;
@@ -489,9 +490,6 @@ fn perform_relocations(
                             flat_address, relocation.source_type, segment, offset_within_segment
                         );
                     }
-                }
-                _ => {
-                    // TODO
                 }
             }
         }

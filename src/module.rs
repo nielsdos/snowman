@@ -1,7 +1,7 @@
 use crate::constants::{GDI_INT_VECTOR, KERNEL_INT_VECTOR, KEYBOARD_INT_VECTOR, USER_INT_VECTOR};
 use crate::emulator_error::EmulatorError;
 use crate::memory::SegmentAndOffset;
-use crate::{Memory, Segment};
+use crate::Memory;
 use std::cell::Cell;
 
 pub struct BaseModule {

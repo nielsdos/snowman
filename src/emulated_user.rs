@@ -1,5 +1,6 @@
 use crate::atom_table::AtomTable;
 use crate::emulator_accessor::EmulatorAccessor;
+use crate::handle_table::GenericHandle;
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::{debug, EmulatorError};
@@ -34,8 +35,8 @@ impl EmulatedUser {
         let style = accessor.dword_argument(9)?;
         let window_name = accessor.pointer_argument(11)?;
         let class_name = accessor.pointer_argument(13)?;
-        println!(
-            "CREATE WINDOW {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+        debug!(
+            "[user] CREATE WINDOW {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
             class_name,
             window_name,
             style,
@@ -91,7 +92,7 @@ impl EmulatedUser {
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
-        if let Some(atom) = self.user_atom_table.register_atom(cloned_class_name) {
+        if let Some(atom) = self.user_atom_table.register(cloned_class_name) {
             accessor
                 .regs_mut()
                 .write_gpr_16(Registers::REG_AX, atom.as_u16());
