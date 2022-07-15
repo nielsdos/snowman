@@ -1,3 +1,5 @@
+use crate::two_d::Rect;
+
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
 
@@ -23,6 +25,15 @@ impl Bitmap {
         }
     }
 
+    pub fn clip(&self, rect: Rect) -> Rect {
+        Rect {
+            left: rect.left.max(0),
+            top: rect.top.max(0),
+            right: rect.right.min(self.width),
+            bottom: rect.bottom.min(self.height),
+        }
+    }
+
     #[inline]
     pub fn width(&self) -> u16 {
         self.width
@@ -42,17 +53,20 @@ impl Bitmap {
         self.pixels[self.index_for(x, y)]
     }
 
-    pub fn draw_horizontal_line(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
-        // TODO: bounds checks to saturate the bounds?
+    fn draw_horizontal_line_unclipped(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
         let start_index = self.index_for(x_start, y);
         let end_index = self.index_for(x_to, y);
         self.pixels[start_index..end_index].fill(color);
     }
 
-    pub fn fill_rectangle(&mut self, x_from: u16, y_from: u16, x_to: u16, y_to: u16, color: Color) {
-        // TODO: bounds checks to saturate the bounds?
-        for y in y_from..y_to {
-            self.draw_horizontal_line(x_from, y, x_to, color);
+    pub fn draw_horizontal_line(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
+        self.draw_horizontal_line_unclipped(x_start.max(0), y.clamp(0, self.height), x_to.min(self.width), color)
+    }
+
+    pub fn fill_rectangle(&mut self, rect: Rect, color: Color) {
+        let rect = self.clip(rect);
+        for y in rect.top..rect.bottom {
+            self.draw_horizontal_line_unclipped(rect.left, y, rect.right, color);
         }
     }
 }

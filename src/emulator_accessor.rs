@@ -1,6 +1,7 @@
 use crate::byte_string::HeapByteString;
 use crate::registers::Registers;
 use crate::{EmulatorError, Memory};
+use crate::two_d::Rect;
 
 pub struct EmulatorAccessor<'a> {
     memory: &'a mut Memory,
@@ -105,5 +106,18 @@ impl<'a> EmulatorAccessor<'a> {
             src_ptr += 1;
         }
         Ok(HeapByteString::from(output.into()))
+    }
+
+    pub fn read_rect(&self, src_ptr: u32) -> Result<Rect, EmulatorError> {
+        let rect_left = self.memory.read_16(src_ptr)?;
+        let rect_top = self.memory.read_16(src_ptr + 2)?;
+        let rect_right = self.memory.read_16(src_ptr + 4)?;
+        let rect_bottom = self.memory.read_16(src_ptr + 6)?;
+        Ok(Rect {
+            left: rect_left,
+            top: rect_top,
+            right: rect_right,
+            bottom: rect_bottom,
+        })
     }
 }

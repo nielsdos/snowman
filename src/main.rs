@@ -39,6 +39,7 @@ mod registers;
 mod screen;
 mod util;
 mod window_manager;
+mod two_d;
 
 struct MZResult {
     pub ne_header_offset: usize,
