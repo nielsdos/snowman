@@ -402,7 +402,7 @@ impl<'a> EmulatedUser<'a> {
         let h_dc = accessor.word_argument(3)?;
         debug!("[user] FILL RECT {:x} {:x} {:x}", h_dc, rect, h_brush);
         let rect = accessor.read_rect(rect)?;
-        let objects = self.write_objects();
+        let objects = self.read_objects();
         if let (Some(GdiObject::DC(window_identifier)), Some(GdiObject::SolidBrush(color))) = (
             objects.gdi.get(h_dc.into()),
             objects.gdi.get(h_brush.into()),
