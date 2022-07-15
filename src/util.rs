@@ -39,7 +39,7 @@ pub fn u16_from_array<const N: usize>(bytes: &[u8; N], offset: usize) -> Option<
     ))
 }
 
-pub fn u32_from_array<const N: usize>(bytes: &[u8], offset: usize) -> Option<u32> {
+pub fn u32_from_array<const N: usize>(bytes: &[u8; N], offset: usize) -> Option<u32> {
     Some(u32::from_le_bytes(
         bytes
             .get(offset..offset + 4)?
