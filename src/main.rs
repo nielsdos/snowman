@@ -49,7 +49,7 @@ fn main() -> Result<(), String> {
 
     // Start one executable
     let window_manager_clone = window_manager.clone();
-    let exe = thread::spawn(move || {
+    let _exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
         //let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";

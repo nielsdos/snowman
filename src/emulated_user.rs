@@ -384,19 +384,16 @@ impl<'a> EmulatedUser<'a> {
         let rect_right = accessor.memory().read_16(rect + 4)?;
         let rect_bottom = accessor.memory().read_16(rect + 6)?;
         let objects = self.objects();
-        match (
+        if let (Some(GdiObject::DC(window_identifier)), Some(GdiObject::SolidBrush(color))) = (
             objects.gdi.get(h_dc.into()),
             objects.gdi.get(h_brush.into()),
         ) {
-            (Some(GdiObject::DC(window_identifier)), Some(GdiObject::SolidBrush(color))) => {
-                objects
-                    .window_manager()
-                    .paint_bitmap_for(*window_identifier)
-                    .map(|bitmap| {
-                        bitmap.fill_rectangle(rect_left, rect_top, rect_right, rect_bottom, *color)
-                    });
+            if let Some(bitmap) = objects
+                .window_manager()
+                .paint_bitmap_for(*window_identifier)
+            {
+                bitmap.fill_rectangle(rect_left, rect_top, rect_right, rect_bottom, *color)
             }
-            _ => {}
         }
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
