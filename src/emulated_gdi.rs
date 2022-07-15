@@ -3,19 +3,19 @@ use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::GdiObject;
 use crate::registers::Registers;
 use crate::{debug, EmulatorError, ObjectEnvironment};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
 
 pub struct EmulatedGdi<'a> {
-    objects: &'a Mutex<ObjectEnvironment<'a>>,
+    objects: &'a RwLock<ObjectEnvironment<'a>>,
 }
 
 impl<'a> EmulatedGdi<'a> {
-    pub fn new(objects: &'a Mutex<ObjectEnvironment<'a>>) -> Self {
+    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
         Self { objects }
     }
 
-    fn objects(&self) -> MutexGuard<'_, ObjectEnvironment<'a>> {
-        self.objects.lock().unwrap()
+    fn write_objects(&self) -> RwLockWriteGuard<'_, ObjectEnvironment<'a>> {
+        self.objects.write().unwrap()
     }
 
     fn create_dc(&self, mut emulator_accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
@@ -89,7 +89,7 @@ impl<'a> EmulatedGdi<'a> {
         );
         let color = crate::bitmap::Color::from(color);
         let handle = self
-            .objects()
+            .write_objects()
             .gdi
             .register(GdiObject::SolidBrush(color))
             .unwrap_or(Handle::null());
@@ -102,10 +102,10 @@ impl<'a> EmulatedGdi<'a> {
     fn delete_object(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         // TODO: which objects may get deleted?
         let handle = accessor.word_argument(0)?;
-        // TODO: check if it is selected into a DC, in that case: fail
+        // TODO: check if it is selected into a DC, in that case: fail ?
         accessor.regs_mut().write_gpr_16(
             Registers::REG_AX,
-            self.objects().gdi.deregister(handle.into()) as u16,
+            self.write_objects().gdi.deregister(handle.into()) as u16,
         );
         Ok(())
     }

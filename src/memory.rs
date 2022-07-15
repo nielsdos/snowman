@@ -7,7 +7,7 @@ pub struct Memory {
     bytes: Box<[u8; MEMORY_SIZE]>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct SegmentAndOffset {
     pub segment: u16,
     pub offset: u16,

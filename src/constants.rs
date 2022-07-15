@@ -17,3 +17,4 @@ pub const WF_STANDARD: u16 = 0x10;
 // Window messages
 pub const WM_CREATE: u16 = 0x01;
 pub const WM_PAINT: u16 = 0x0f;
+pub const WM_QUIT: u16 = 0x12;

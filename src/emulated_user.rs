@@ -1,6 +1,6 @@
 use crate::atom_table::AtomTable;
 use crate::byte_string::HeapByteString;
-use crate::constants::{WM_CREATE, WM_PAINT};
+use crate::constants::{WM_CREATE, WM_PAINT, WM_QUIT};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWindow};
@@ -9,9 +9,11 @@ use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread;
 use std::time::Duration;
+use crate::memory::SegmentAndOffset;
+use crate::message_queue::MessageQueue;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -31,11 +33,11 @@ struct WindowClass {
 pub struct EmulatedUser<'a> {
     user_atom_table: AtomTable,
     window_classes: HashMap<HeapByteString, WindowClass>,
-    objects: &'a Mutex<ObjectEnvironment<'a>>,
+    objects: &'a RwLock<ObjectEnvironment<'a>>,
 }
 
 impl<'a> EmulatedUser<'a> {
-    pub fn new(objects: &'a Mutex<ObjectEnvironment<'a>>) -> Self {
+    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
         Self {
             user_atom_table: AtomTable::new(),
             window_classes: HashMap::new(),
@@ -75,6 +77,7 @@ impl<'a> EmulatedUser<'a> {
             h_instance,
             param
         );
+        debug_print_null_terminated_string(&accessor, class_name);
 
         // TODO: support atom lookup here (that's the case if segment == 0)
         // TODO: avoid allocation in the future for just looking up strings
@@ -82,14 +85,16 @@ impl<'a> EmulatedUser<'a> {
             let user_window = UserWindow {
                 proc_segment: class.proc_segment,
                 proc_offset: class.proc_offset,
+                message_queue: MessageQueue::new(),
             };
+            let proc = user_window.proc();
             let window_handle = self
-                .objects()
+                .write_objects()
                 .user
                 .register(UserObject::Window(user_window))
                 .unwrap_or(Handle::null());
             if window_handle != Handle::null() {
-                self.objects().window_manager().create_window(
+                self.write_objects().window_manager().create_window(
                     WindowIdentifier {
                         window_handle,
                         process_id: self.process_id(),
@@ -103,23 +108,26 @@ impl<'a> EmulatedUser<'a> {
                     .regs_mut()
                     .write_gpr_16(Registers::REG_AX, window_handle.as_u16());
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
-                self.call_wndproc_sync(
+                return self.call_wndproc_sync(
                     &mut accessor,
-                    &user_window,
+                    proc,
                     window_handle,
                     WM_CREATE,
                     0,
                     0,
-                )?;
-                return Ok(());
+                );
             }
         }
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
         Ok(())
     }
 
-    fn objects(&self) -> MutexGuard<'_, ObjectEnvironment<'a>> {
-        self.objects.lock().unwrap()
+    fn read_objects(&self) -> RwLockReadGuard<'_, ObjectEnvironment<'a>> {
+        self.objects.read().unwrap()
+    }
+
+    fn write_objects(&self) -> RwLockWriteGuard<'_, ObjectEnvironment<'a>> {
+        self.objects.write().unwrap()
     }
 
     fn process_id(&self) -> ProcessId {
@@ -131,7 +139,7 @@ impl<'a> EmulatedUser<'a> {
         let cmd_show = accessor.word_argument(0)?;
         let h_wnd = accessor.word_argument(1)?;
         debug!("[user] SHOW WINDOW {:x} {:x}", h_wnd, cmd_show);
-        let objects = self.objects();
+        let objects = self.write_objects();
         let success = match objects.user.get(h_wnd.into()) {
             Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
@@ -152,10 +160,10 @@ impl<'a> EmulatedUser<'a> {
     fn update_window(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
         let h_wnd = accessor.word_argument(0)?;
         debug!("[user] UPDATE WINDOW {:x}", h_wnd);
-        let success = match self.objects().user.get(h_wnd.into()) {
+        let success = match self.write_objects().user.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => {
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(&mut accessor, user_window, h_wnd.into(), WM_PAINT, 0, 0)?;
+                self.call_wndproc_sync(&mut accessor, user_window.proc(), h_wnd.into(), WM_PAINT, 0, 0)?;
                 true
             }
             None => false,
@@ -243,13 +251,27 @@ impl<'a> EmulatedUser<'a> {
             "[user] GET MESSAGE {:x} {:x} {:x} {:x}",
             msg, h_wnd, msg_filter_min, msg_filter_max
         );
-        // TODO: this is to prevent the application from exiting
-        loop {
-            thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        }
 
-        // TODO
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
+        let message = match self.read_objects().user.get(h_wnd.into()) {
+            Some(UserObject::Window(user_window)) => user_window.message_queue.receive(),
+            _ => None
+        };
+
+        // TODO: implement filters
+        // TODO: support hwnd being null
+        let return_value = if let Some(message) = message {
+            // TODO: write message
+
+            if message.message == WM_QUIT {
+                0
+            } else {
+                1
+            }
+        } else {
+            println!("error");
+            0xffff
+        };
+        accessor.regs_mut().write_gpr_16(Registers::REG_AX, return_value);
         Ok(())
     }
 
@@ -279,7 +301,7 @@ impl<'a> EmulatedUser<'a> {
     fn call_wndproc_sync(
         &self,
         accessor: &mut EmulatorAccessor,
-        window: &UserWindow,
+        proc: SegmentAndOffset,
         h_wnd: Handle,
         message: u16,
         w_param: u16,
@@ -291,7 +313,7 @@ impl<'a> EmulatedUser<'a> {
         accessor.push_16(w_param)?;
         accessor.push_16((l_param >> 16) as u16)?;
         accessor.push_16(l_param as u16)?;
-        accessor.far_call_into_proc_execute(window.proc_segment, window.proc_offset)
+        accessor.far_call_into_proc_execute(proc.segment, proc.offset)
     }
 
     fn get_system_metrics(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
@@ -336,7 +358,7 @@ impl<'a> EmulatedUser<'a> {
         let paint = accessor.pointer_argument(0)?;
         let h_wnd = accessor.word_argument(2)?;
         debug!("[user] BEGIN PAINT {:x} {:x}", h_wnd, paint,);
-        let mut objects = self.objects();
+        let mut objects = self.write_objects();
         let display_device_handle_for_window = match objects.user.get(h_wnd.into()) {
             Some(UserObject::Window(_)) => {
                 let window_identifier = WindowIdentifier {
@@ -369,7 +391,7 @@ impl<'a> EmulatedUser<'a> {
         debug!("[user] END PAINT {:x} {:x}", h_wnd, paint,);
         // TODO: this should probably cause a flip of the front and back bitmap for the given window
         let handle = accessor.memory().read_16(paint)?;
-        self.objects().gdi.deregister(handle.into());
+        self.write_objects().gdi.deregister(handle.into());
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
         Ok(())
     }
@@ -380,7 +402,7 @@ impl<'a> EmulatedUser<'a> {
         let h_dc = accessor.word_argument(3)?;
         debug!("[user] FILL RECT {:x} {:x} {:x}", h_dc, rect, h_brush);
         let rect = accessor.read_rect(rect)?;
-        let objects = self.objects();
+        let objects = self.write_objects();
         if let (Some(GdiObject::DC(window_identifier)), Some(GdiObject::SolidBrush(color))) = (
             objects.gdi.get(h_dc.into()),
             objects.gdi.get(h_brush.into()),

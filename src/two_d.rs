@@ -4,3 +4,8 @@ pub struct Rect {
     pub right: u16,
     pub bottom: u16,
 }
+
+pub struct Point {
+    pub x: u16,
+    pub y: u16,
+}
