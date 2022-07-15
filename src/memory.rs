@@ -1,9 +1,10 @@
 use crate::emulator_error::EmulatorError;
-use crate::u16_from_slice;
-use crate::util::u32_from_slice;
+use crate::util::{u16_from_array, u32_from_array};
+
+const MEMORY_SIZE: usize = 1024 * 1024;
 
 pub struct Memory {
-    bytes: Box<[u8]>,
+    bytes: Box<[u8; MEMORY_SIZE]>,
 }
 
 #[derive(Debug)]
@@ -15,8 +16,7 @@ pub struct SegmentAndOffset {
 impl Memory {
     pub fn new() -> Self {
         Self {
-            // TODO
-            bytes: vec![0; 1024 * 1024].into_boxed_slice(),
+            bytes: Box::new([0; MEMORY_SIZE]),
         }
     }
 
@@ -27,15 +27,20 @@ impl Memory {
     }
 
     pub fn write_16(&mut self, address: u32, data: u16) -> Result<(), EmulatorError> {
-        // TODO: bounds checks
-        self.bytes[address as usize] = data as u8;
-        self.bytes[address as usize + 1] = (data >> 8) as u8;
-        Ok(())
+        if ((address + 1) as usize) < MEMORY_SIZE {
+            self.bytes[address as usize] = data as u8;
+            self.bytes[address as usize + 1] = (data >> 8) as u8;
+            Ok(())
+        } else {
+            Err(EmulatorError::OutOfBounds)
+        }
     }
 
     pub fn write_8(&mut self, address: u32, data: u8) -> Result<(), EmulatorError> {
-        // TODO: bounds checks
-        self.bytes[address as usize] = data;
+        *self
+            .bytes
+            .get_mut(address as usize)
+            .ok_or(EmulatorError::OutOfBounds)? = data;
         Ok(())
     }
 
@@ -56,13 +61,12 @@ impl Memory {
     }
 
     pub fn read_32(&self, address: u32) -> Result<u32, EmulatorError> {
-        // TODO: bounds check
-        Ok(u32_from_slice(&self.bytes, address as usize))
+        u32_from_array::<MEMORY_SIZE>(&*self.bytes, address as usize)
+            .ok_or(EmulatorError::OutOfBounds)
     }
 
     pub fn read_16(&self, address: u32) -> Result<u16, EmulatorError> {
-        // TODO: bounds check
-        Ok(u16_from_slice(&self.bytes, address as usize))
+        u16_from_array(&*self.bytes, address as usize).ok_or(EmulatorError::OutOfBounds)
     }
 
     pub fn read_8(&self, address: u32) -> Result<u8, EmulatorError> {

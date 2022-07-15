@@ -61,20 +61,15 @@ impl<'a> Executable<'a> {
 
     pub fn read_u8(&self, offset: usize) -> Result<u8, ExecutableFormatError> {
         let index = self.cursor + offset;
-        if index < self.internal_data.len() {
-            Ok(self.internal_data[index])
-        } else {
-            Err(ExecutableFormatError::HeaderSize)
-        }
+        self.internal_data
+            .get(index)
+            .copied()
+            .ok_or(ExecutableFormatError::HeaderSize)
     }
 
     pub fn read_u16(&self, offset: usize) -> Result<u16, ExecutableFormatError> {
         let index = self.cursor + offset;
-        if index < self.internal_data.len() - 1 {
-            Ok(u16_from_slice(self.internal_data, index))
-        } else {
-            Err(ExecutableFormatError::HeaderSize)
-        }
+        u16_from_slice(self.internal_data, index).ok_or(ExecutableFormatError::HeaderSize)
     }
 
     pub fn overwrite_u8(&mut self, offset: usize, data: u8) -> Result<(), ExecutableFormatError> {
