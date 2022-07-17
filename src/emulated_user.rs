@@ -9,11 +9,9 @@ use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWi
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
-use crate::{debug, EmulatorError, Segment};
+use crate::{debug, EmulatorError};
 use std::collections::HashMap;
-use std::sync::{LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::thread;
-use std::time::Duration;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -198,7 +196,7 @@ impl<'a> EmulatedUser<'a> {
         let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr + 4)?;
         let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr + 6)?;
         let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr + 8)?;
-        let wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
+        let _wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr + 10)?;
         let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr + 12)?;
         let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr + 14)?;
         let wnd_class_h_background = accessor.memory().read_16(wnd_class_ptr + 16)?;

@@ -11,7 +11,7 @@ impl EmulatedKeyboard {
     pub fn syscall(
         &self,
         nr: u16,
-        emulator_accessor: EmulatorAccessor,
+        _emulator_accessor: EmulatorAccessor,
     ) -> Result<(), EmulatorError> {
         match nr {
             nr => {

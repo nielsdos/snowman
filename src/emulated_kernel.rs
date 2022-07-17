@@ -134,8 +134,8 @@ impl EmulatedKernel {
         let size = accessor.word_argument(0)?;
         let returned_string = accessor.pointer_argument(1)?;
         let default = accessor.pointer_argument(3)?;
-        let key_name = accessor.pointer_argument(5)?;
-        let app_name = accessor.pointer_argument(7)?;
+        let _key_name = accessor.pointer_argument(5)?;
+        let _app_name = accessor.pointer_argument(7)?;
         debug!("[kernel] GET PROFILE STRING {}", size);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default, returned_string)?;

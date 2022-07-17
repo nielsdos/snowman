@@ -14,7 +14,7 @@ impl<'a> EmulatorAccessor<'a> {
     }
 
     pub fn regs_mut(&mut self) -> &mut Registers {
-        &mut self.regs
+        self.regs
     }
 
     pub fn memory(&self) -> &Memory {
@@ -22,7 +22,7 @@ impl<'a> EmulatorAccessor<'a> {
     }
 
     pub fn memory_mut(&mut self) -> &mut Memory {
-        &mut self.memory
+        self.memory
     }
 
     pub fn word_argument(&self, nr: u32) -> Result<u16, EmulatorError> {
@@ -108,7 +108,7 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(HeapByteString::from(output.into()))
     }
 
-    pub fn static_string(&mut self, mut src_ptr: u32) -> Result<ByteString, EmulatorError> {
+    pub fn static_string(&mut self, src_ptr: u32) -> Result<ByteString, EmulatorError> {
         let mut length = 0;
         loop {
             let current = src_ptr.saturating_add(length);
@@ -118,7 +118,6 @@ impl<'a> EmulatorAccessor<'a> {
             }
             length += 1;
         }
-        Err(EmulatorError::OutOfBounds)
     }
 
     pub fn read_rect(&self, src_ptr: u32) -> Result<Rect, EmulatorError> {

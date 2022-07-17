@@ -13,10 +13,7 @@ use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
 use crate::window_manager::WindowManager;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 

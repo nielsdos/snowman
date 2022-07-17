@@ -3,7 +3,7 @@ use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::GdiObject;
 use crate::registers::Registers;
 use crate::{debug, EmulatorError, ObjectEnvironment};
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockWriteGuard};
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,

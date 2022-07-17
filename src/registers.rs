@@ -202,7 +202,7 @@ impl Registers {
     pub fn handle_arithmetic_result_u_generic<const N: usize>(
         &mut self,
         result: u16,
-        affect_cf: bool,
+        _affect_cf: bool,
     ) {
         // TODO: support CF, OF, AF
 
