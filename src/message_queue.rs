@@ -1,10 +1,11 @@
 use crate::handle_table::Handle;
 use crate::two_d::Point;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use crate::constants::MessageType;
 
 pub struct WindowMessage {
     pub h_wnd: Handle,
-    pub message: u16,
+    pub message: MessageType,
     pub w_param: u16,
     pub l_param: u32,
     pub time: u32,

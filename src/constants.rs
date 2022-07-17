@@ -7,6 +7,7 @@ pub const KEYBOARD_INT_VECTOR: u8 = 0xfc;
 pub const LOWEST_SYSCALL_INT_VECTOR: u8 = 0xfc;
 
 bitflags! {
+    #[allow(dead_code)]
     pub struct WinFlags: u16 {
         const WF_80X87 = 0x400;
         const WF_CPU286 = 0x2;
@@ -19,7 +20,16 @@ bitflags! {
     }
 }
 
-// Window messages
-pub const WM_CREATE: u16 = 0x01;
-pub const WM_PAINT: u16 = 0x0f;
-pub const WM_QUIT: u16 = 0x12;
+#[allow(dead_code)]
+#[derive(Eq, PartialEq)]
+pub enum MessageType {
+    CREATE = 0x01,
+    PAINT = 0x0f,
+    QUIT = 0x12,
+}
+
+impl From<MessageType> for u16 {
+    fn from(m: MessageType) -> Self {
+        m as u16
+    }
+}

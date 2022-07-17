@@ -1,6 +1,5 @@
 use crate::atom_table::AtomTable;
 use crate::byte_string::ByteString;
-use crate::constants::{WM_CREATE, WM_PAINT, WM_QUIT};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
@@ -12,6 +11,7 @@ use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::constants::MessageType;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -123,7 +123,7 @@ impl<'a> EmulatedUser<'a> {
                     .regs_mut()
                     .write_gpr_16(Registers::REG_AX, window_handle.as_u16());
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
-                return self.call_wndproc_sync(&mut accessor, proc, window_handle, WM_CREATE, 0, 0);
+                return self.call_wndproc_sync(&mut accessor, proc, window_handle, MessageType::CREATE, 0, 0);
             }
         }
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
@@ -175,7 +175,7 @@ impl<'a> EmulatedUser<'a> {
                     &mut accessor,
                     user_window.proc,
                     h_wnd.into(),
-                    WM_PAINT,
+                    MessageType::PAINT,
                     0,
                     0,
                 )?;
@@ -282,7 +282,7 @@ impl<'a> EmulatedUser<'a> {
         let return_value = if let Some(message) = message {
             // TODO: write message
 
-            if message.message == WM_QUIT {
+            if message.message == MessageType::QUIT {
                 0
             } else {
                 1
@@ -325,13 +325,13 @@ impl<'a> EmulatedUser<'a> {
         accessor: &mut EmulatorAccessor,
         proc: SegmentAndOffset,
         h_wnd: Handle,
-        message: u16,
+        message: MessageType,
         w_param: u16,
         l_param: u32,
     ) -> Result<(), EmulatorError> {
         accessor.far_call_into_proc_setup()?;
         accessor.push_16(h_wnd.as_u16())?;
-        accessor.push_16(message)?;
+        accessor.push_16(message.into())?;
         accessor.push_16(w_param)?;
         accessor.push_16((l_param >> 16) as u16)?;
         accessor.push_16(l_param as u16)?;
