@@ -700,6 +700,7 @@ impl<'a> Emulator<'a> {
 
     pub fn read_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
+            0x00 => self.add_rm8_r8(),
             0x01 => self.add_rm16_r16(),
             0x06 => self.push_segment_16(Registers::REG_ES),
             0x07 => self.pop_segment_16(Registers::REG_ES),
