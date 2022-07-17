@@ -19,7 +19,7 @@ impl HeapByteString {
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        self.data
+        &*self.data
     }
 }
 
