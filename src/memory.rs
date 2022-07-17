@@ -1,5 +1,6 @@
 use crate::emulator_error::EmulatorError;
 use crate::util::{u16_from_array, u32_from_array};
+use std::ops::Deref;
 
 const MEMORY_SIZE: usize = 1024 * 1024;
 
@@ -67,12 +68,12 @@ impl Memory {
     }
 
     pub fn read_32(&self, address: u32) -> Result<u32, EmulatorError> {
-        u32_from_array::<MEMORY_SIZE>(&*self.bytes, address as usize)
+        u32_from_array::<MEMORY_SIZE>(self.bytes.deref(), address as usize)
             .ok_or(EmulatorError::OutOfBounds)
     }
 
     pub fn read_16(&self, address: u32) -> Result<u16, EmulatorError> {
-        u16_from_array(&*self.bytes, address as usize).ok_or(EmulatorError::OutOfBounds)
+        u16_from_array(self.bytes.deref(), address as usize).ok_or(EmulatorError::OutOfBounds)
     }
 
     pub fn read_8(&self, address: u32) -> Result<u8, EmulatorError> {

@@ -23,9 +23,9 @@ bitflags! {
 #[allow(dead_code)]
 #[derive(Eq, PartialEq)]
 pub enum MessageType {
-    CREATE = 0x01,
-    PAINT = 0x0f,
-    QUIT = 0x12,
+    Create = 0x01,
+    Paint = 0x0f,
+    Quit = 0x12,
 }
 
 impl From<MessageType> for u16 {

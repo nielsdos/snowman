@@ -115,7 +115,6 @@ enum RelocationType {
 struct Relocation {
     relocation_type: RelocationType,
     locations: Vec<u16>,
-    offset_within_segment_from_source_chain: u16,
     source_type: u8,
 }
 
@@ -211,7 +210,6 @@ fn process_segment_table(
                                 parameter,
                             }),
                             locations: relocation_locations,
-                            offset_within_segment_from_source_chain,
                             source_type,
                         });
                     }
@@ -228,7 +226,6 @@ fn process_segment_table(
                                 },
                             ),
                             locations: relocation_locations,
-                            offset_within_segment_from_source_chain,
                             source_type,
                         });
                     }

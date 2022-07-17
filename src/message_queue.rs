@@ -1,7 +1,7 @@
+use crate::constants::MessageType;
 use crate::handle_table::Handle;
 use crate::two_d::Point;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use crate::constants::MessageType;
 
 pub struct WindowMessage {
     pub h_wnd: Handle,

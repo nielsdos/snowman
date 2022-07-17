@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -19,15 +20,11 @@ impl HeapByteString {
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        &*self.data
+        self.data.deref()
     }
 }
 
 impl<'a> ByteString<'a> {
-    pub fn from_rc_slice(b: Rc<[u8]>) -> Self {
-        Self::Heaped(HeapByteString::from(b))
-    }
-
     pub fn from_slice(s: &'a [u8]) -> Self {
         Self::Static(s)
     }

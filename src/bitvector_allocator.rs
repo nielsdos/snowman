@@ -14,10 +14,6 @@ impl BitVectorAllocator {
         Self { bits }
     }
 
-    pub fn claim(&mut self, bit: usize) {
-        self.bits[bit / size_of::<usize>()] &= !(1 << (bit % size_of::<usize>()));
-    }
-
     pub fn allocate(&mut self) -> Option<usize> {
         for (index, entry) in self.bits.iter_mut().enumerate() {
             if *entry != 0 {
