@@ -1,4 +1,4 @@
-use crate::byte_string::HeapByteString;
+use crate::byte_string::{ByteString, HeapByteString};
 use crate::registers::Registers;
 use crate::{EmulatorError, Memory};
 use crate::two_d::Rect;
@@ -106,6 +106,19 @@ impl<'a> EmulatorAccessor<'a> {
             src_ptr += 1;
         }
         Ok(HeapByteString::from(output.into()))
+    }
+
+    pub fn static_string(&mut self, mut src_ptr: u32) -> Result<ByteString, EmulatorError> {
+        let mut length = 0;
+        loop {
+            let current = src_ptr.saturating_add(length);
+            let data = self.memory.read_8(current)?;
+            if data == 0 {
+                return self.memory.slice(src_ptr, current).map(ByteString::Static);
+            }
+            length += 1;
+        }
+        Err(EmulatorError::OutOfBounds)
     }
 
     pub fn read_rect(&self, src_ptr: u32) -> Result<Rect, EmulatorError> {

@@ -1,5 +1,5 @@
 use crate::atom_table::AtomTable;
-use crate::byte_string::HeapByteString;
+use crate::byte_string::ByteString;
 use crate::constants::{WM_CREATE, WM_PAINT, WM_QUIT};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
@@ -17,7 +17,7 @@ use crate::message_queue::MessageQueue;
 
 #[allow(dead_code)]
 #[derive(Debug)]
-struct WindowClass {
+struct WindowClass<'a> {
     style: u16,
     proc_segment: u16,
     proc_offset: u16,
@@ -26,21 +26,33 @@ struct WindowClass {
     h_icon: Handle,
     h_cursor: Handle,
     h_background: Handle,
-    menu_class_name: Option<HeapByteString>,
+    menu_class_name: Option<ByteString<'a>>,
 }
 
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
 pub struct EmulatedUser<'a> {
-    user_atom_table: AtomTable,
-    window_classes: HashMap<HeapByteString, WindowClass>,
+    user_atom_table: AtomTable<'a>,
+    window_classes: HashMap<ByteString<'a>, WindowClass<'a>>,
     objects: &'a RwLock<ObjectEnvironment<'a>>,
 }
 
 impl<'a> EmulatedUser<'a> {
     pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
+        let mut window_classes = HashMap::new();
+        window_classes.insert(ByteString::from_slice(b"BUTTON"), WindowClass {
+            style: 0, // TODO
+            proc_segment: 0x1234,
+            proc_offset: 0,
+            cls_extra: 0,
+            wnd_extra: 0,
+            h_icon: Handle::null(),
+            h_cursor: Handle::null(),
+            h_background: Handle::null(), // TODO
+            menu_class_name: None
+        });
         Self {
             user_atom_table: AtomTable::new(),
-            window_classes: HashMap::new(),
+            window_classes,
             objects,
         }
     }
@@ -80,8 +92,7 @@ impl<'a> EmulatedUser<'a> {
         debug_print_null_terminated_string(&accessor, class_name);
 
         // TODO: support atom lookup here (that's the case if segment == 0)
-        // TODO: avoid allocation in the future for just looking up strings
-        if let Some(class) = self.window_classes.get(&accessor.clone_string(class_name)?) {
+        if let Some(class) = self.window_classes.get(&accessor.static_string(class_name)?) {
             let user_window = UserWindow {
                 proc_segment: class.proc_segment,
                 proc_offset: class.proc_offset,
@@ -189,7 +200,7 @@ impl<'a> EmulatedUser<'a> {
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
-        if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone()) {
+        if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone().into()) {
             let window_class = WindowClass {
                 style: wnd_class_style,
                 proc_segment: wnd_class_proc_segment,
@@ -200,7 +211,7 @@ impl<'a> EmulatedUser<'a> {
                 h_cursor: wnd_class_h_cursor.into(),
                 h_background: wnd_class_h_background.into(),
                 menu_class_name: if wnd_class_menu_name != 0 {
-                    Some(accessor.clone_string(wnd_class_menu_name)?)
+                    Some(accessor.clone_string(wnd_class_menu_name)?.into())
                 } else {
                     None
                 },
@@ -212,7 +223,7 @@ impl<'a> EmulatedUser<'a> {
             );
             if self
                 .window_classes
-                .insert(cloned_class_name, window_class)
+                .insert(cloned_class_name.into(), window_class)
                 .is_none()
             {
                 accessor
@@ -407,6 +418,9 @@ impl<'a> EmulatedUser<'a> {
             objects.gdi.get(h_dc.into()),
             objects.gdi.get(h_brush.into()),
         ) {
+            // TODO: wat als de DC een window identifier + clip rect geeft?
+            // TODO: see also CS_PARENTDC & https://devblogs.microsoft.com/oldnewthing/20120604-00/?p=7463
+
             if let Some(bitmap) = objects
                 .window_manager()
                 .paint_bitmap_for(*window_identifier)
