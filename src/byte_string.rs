@@ -8,10 +8,15 @@ pub struct HeapByteString {
     data: Rc<[u8]>,
 }
 
+#[derive(Clone, Eq, Hash, PartialEq)]
+pub struct StaticByteString<'a> {
+    data: &'a [u8],
+}
+
 #[derive(Clone)]
 pub enum ByteString<'a> {
     Heaped(HeapByteString),
-    Static(&'a [u8]),
+    Static(StaticByteString<'a>),
 }
 
 impl HeapByteString {
@@ -24,15 +29,25 @@ impl HeapByteString {
     }
 }
 
+impl<'a> StaticByteString<'a> {
+    pub fn from(data: &'a [u8]) -> Self {
+        Self { data }
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.data.deref()
+    }
+}
+
 impl<'a> ByteString<'a> {
-    pub fn from_slice(s: &'a [u8]) -> Self {
-        Self::Static(s)
+    pub fn from_slice(data: &'a [u8]) -> Self {
+        Self::Static(StaticByteString::from(data))
     }
 
     pub fn as_slice(&self) -> &[u8] {
         match self {
             Self::Heaped(hbs) => hbs.as_slice(),
-            Self::Static(slice) => slice,
+            Self::Static(sbs) => sbs.as_slice(),
         }
     }
 }
