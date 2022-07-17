@@ -3,6 +3,8 @@ use crate::byte_string::ByteString;
 use crate::constants::{WM_CREATE, WM_PAINT, WM_QUIT};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
+use crate::memory::SegmentAndOffset;
+use crate::message_queue::MessageQueue;
 use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWindow};
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
@@ -12,8 +14,6 @@ use std::collections::HashMap;
 use std::sync::{LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread;
 use std::time::Duration;
-use crate::memory::SegmentAndOffset;
-use crate::message_queue::MessageQueue;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -38,16 +38,22 @@ pub struct EmulatedUser<'a> {
 impl<'a> EmulatedUser<'a> {
     pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
         let mut window_classes = HashMap::new();
-        window_classes.insert(ByteString::from_slice(b"BUTTON"), WindowClass {
-            style: 0, // TODO
-            proc: SegmentAndOffset { segment: 0x1234, offset: 0 },
-            cls_extra: 0,
-            wnd_extra: 0,
-            h_icon: Handle::null(),
-            h_cursor: Handle::null(),
-            h_background: Handle::null(), // TODO
-            menu_class_name: None
-        });
+        window_classes.insert(
+            ByteString::from_slice(b"BUTTON"),
+            WindowClass {
+                style: 0, // TODO
+                proc: SegmentAndOffset {
+                    segment: 0x1234,
+                    offset: 0,
+                },
+                cls_extra: 0,
+                wnd_extra: 0,
+                h_icon: Handle::null(),
+                h_cursor: Handle::null(),
+                h_background: Handle::null(), // TODO
+                menu_class_name: None,
+            },
+        );
         Self {
             user_atom_table: AtomTable::new(),
             window_classes,
@@ -90,7 +96,10 @@ impl<'a> EmulatedUser<'a> {
         debug_print_null_terminated_string(&accessor, class_name);
 
         // TODO: support atom lookup here (that's the case if segment == 0)
-        if let Some(class) = self.window_classes.get(&accessor.static_string(class_name)?) {
+        if let Some(class) = self
+            .window_classes
+            .get(&accessor.static_string(class_name)?)
+        {
             let user_window = UserWindow {
                 proc: class.proc,
                 message_queue: MessageQueue::new(),
@@ -116,14 +125,7 @@ impl<'a> EmulatedUser<'a> {
                     .regs_mut()
                     .write_gpr_16(Registers::REG_AX, window_handle.as_u16());
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
-                return self.call_wndproc_sync(
-                    &mut accessor,
-                    proc,
-                    window_handle,
-                    WM_CREATE,
-                    0,
-                    0,
-                );
+                return self.call_wndproc_sync(&mut accessor, proc, window_handle, WM_CREATE, 0, 0);
             }
         }
         accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
@@ -171,7 +173,14 @@ impl<'a> EmulatedUser<'a> {
         let success = match self.write_objects().user.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => {
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(&mut accessor, user_window.proc, h_wnd.into(), WM_PAINT, 0, 0)?;
+                self.call_wndproc_sync(
+                    &mut accessor,
+                    user_window.proc,
+                    h_wnd.into(),
+                    WM_PAINT,
+                    0,
+                    0,
+                )?;
                 true
             }
             None => false,
@@ -197,10 +206,16 @@ impl<'a> EmulatedUser<'a> {
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr + 22)?;
 
         let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
-        if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone().into()) {
+        if let Some(atom) = self
+            .user_atom_table
+            .register(cloned_class_name.clone().into())
+        {
             let window_class = WindowClass {
                 style: wnd_class_style,
-                proc: SegmentAndOffset { segment: wnd_class_proc_segment, offset: wnd_class_proc_offset },
+                proc: SegmentAndOffset {
+                    segment: wnd_class_proc_segment,
+                    offset: wnd_class_proc_offset,
+                },
                 cls_extra: wnd_class_cls_extra,
                 wnd_extra: wnd_class_wnd_extra,
                 h_icon: wnd_class_h_icon.into(),
@@ -261,7 +276,7 @@ impl<'a> EmulatedUser<'a> {
 
         let message = match self.read_objects().user.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => user_window.message_queue.receive(),
-            _ => None
+            _ => None,
         };
 
         // TODO: implement filters
@@ -278,7 +293,9 @@ impl<'a> EmulatedUser<'a> {
             println!("error");
             0xffff
         };
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, return_value);
+        accessor
+            .regs_mut()
+            .write_gpr_16(Registers::REG_AX, return_value);
         Ok(())
     }
 

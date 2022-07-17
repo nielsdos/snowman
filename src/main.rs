@@ -1,4 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
 use crate::emulated_gdi::EmulatedGdi;
 use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_keyboard::EmulatedKeyboard;
@@ -14,12 +13,12 @@ use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
 use crate::window_manager::WindowManager;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use crate::byte_string::ByteString;
 
 mod atom_table;
 mod bitmap;
@@ -36,15 +35,15 @@ mod emulator_error;
 mod executable;
 mod handle_table;
 mod memory;
+mod message_queue;
 mod mod_rm;
 mod module;
 mod object_environment;
 mod registers;
 mod screen;
+mod two_d;
 mod util;
 mod window_manager;
-mod two_d;
-mod message_queue;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -639,15 +638,6 @@ fn process_file(
     executable: &mut Executable,
     window_manager: &Mutex<WindowManager>,
 ) -> Result<(), ExecutableFormatError> {
-    let mut hasher = DefaultHasher::new();
-    ByteString::from_slice(b"KERNEL").hash(&mut hasher);
-    println!("{}", hasher.finish());
-    let mut hasher = DefaultHasher::new();
-    ByteString::from_rc_slice(b"KERNEL".to_vec().into()).hash(&mut hasher);
-    println!("{}", hasher.finish());
-
-    println!("{}", ByteString::from_slice(b"KERNEL") == ByteString::from_rc_slice(b"KERNEL".to_vec().into()));
-
     let mz_result = process_file_mz(executable)?;
     process_file_ne(executable, mz_result.ne_header_offset, window_manager)
 }

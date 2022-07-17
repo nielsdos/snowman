@@ -1,7 +1,7 @@
 use crate::byte_string::{ByteString, HeapByteString};
 use crate::registers::Registers;
-use crate::{EmulatorError, Memory};
 use crate::two_d::Rect;
+use crate::{EmulatorError, Memory};
 
 pub struct EmulatorAccessor<'a> {
     memory: &'a mut Memory,

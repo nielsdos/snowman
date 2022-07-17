@@ -1,6 +1,6 @@
-use std::sync::mpsc::{channel, Sender, Receiver};
 use crate::handle_table::Handle;
 use crate::two_d::Point;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 pub struct WindowMessage {
     pub h_wnd: Handle,
@@ -30,5 +30,3 @@ impl MessageQueue {
         self.rx.recv().ok()
     }
 }
-
-

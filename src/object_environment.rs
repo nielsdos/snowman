@@ -1,10 +1,10 @@
 use crate::bitmap::Color;
 use crate::handle_table::HandleTable;
+use crate::memory::SegmentAndOffset;
+use crate::message_queue::MessageQueue;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
 use std::sync::{Mutex, MutexGuard};
-use crate::memory::SegmentAndOffset;
-use crate::message_queue::MessageQueue;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,

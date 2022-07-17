@@ -15,9 +15,7 @@ pub enum ByteString<'a> {
 
 impl HeapByteString {
     pub fn from(data: Rc<[u8]>) -> Self {
-        Self {
-            data
-        }
+        Self { data }
     }
 
     pub fn as_slice(&self) -> &[u8] {

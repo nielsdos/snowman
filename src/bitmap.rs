@@ -60,7 +60,12 @@ impl Bitmap {
     }
 
     pub fn draw_horizontal_line(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
-        self.draw_horizontal_line_unclipped(x_start.clamp(0, self.width), y.clamp(0, self.height), x_to.clamp(0, self.width), color)
+        self.draw_horizontal_line_unclipped(
+            x_start.clamp(0, self.width),
+            y.clamp(0, self.height),
+            x_to.clamp(0, self.width),
+            color,
+        )
     }
 
     pub fn fill_rectangle(&mut self, rect: Rect, color: Color) {
