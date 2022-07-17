@@ -41,8 +41,8 @@ impl<'a> EmulatorAccessor<'a> {
     pub fn far_call_into_proc_setup(&mut self) -> Result<(), EmulatorError> {
         // The actual place to return to in the system call
         self.push_16(self.regs.ip)?;
-        // Save return value
-        self.push_16(self.regs.read_gpr_16(Registers::REG_AX))?;
+        // Return value will be filled in later by `ReturnValue::DelayedU16`
+        self.regs.dec_sp(2);
         Ok(())
     }
 
@@ -69,10 +69,6 @@ impl<'a> EmulatorAccessor<'a> {
         let segment = self.word_argument(nr + 1)?;
         let offset = self.word_argument(nr)?;
         let flat_address = ((segment as u32) << 4) + (offset as u32);
-        //println!(
-        //    "flat address: {:x}:{:x} = {:x}",
-        //    segment, offset, flat_address,
-        //);
         Ok(flat_address)
     }
 
@@ -95,7 +91,7 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(number_of_bytes_copied)
     }
 
-    pub fn clone_string(&mut self, mut src_ptr: u32) -> Result<HeapByteString, EmulatorError> {
+    pub fn clone_string(&self, mut src_ptr: u32) -> Result<HeapByteString, EmulatorError> {
         let mut output = Vec::new();
         loop {
             let data = self.memory.read_8(src_ptr)?;
@@ -108,13 +104,13 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(HeapByteString::from(output.into()))
     }
 
-    pub fn static_string(&mut self, src_ptr: u32) -> Result<ByteString, EmulatorError> {
+    pub fn static_string(&self, src_ptr: u32) -> Result<ByteString, EmulatorError> {
         let mut length = 0;
         loop {
             let current = src_ptr.saturating_add(length);
             let data = self.memory.read_8(current)?;
             if data == 0 {
-                return self.memory.slice(src_ptr, current).map(ByteString::Static);
+                return self.memory.slice(src_ptr, current).map(ByteString::from_slice);
             }
             length += 1;
         }

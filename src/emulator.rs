@@ -11,6 +11,8 @@ use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;
 use crate::{debug, EmulatedUser};
+use crate::api_helpers::ReturnValue;
+use crate::handle_table::GenericHandle;
 
 pub struct Emulator<'a> {
     regs: Registers,
@@ -453,7 +455,20 @@ impl<'a> Emulator<'a> {
             if nr == KERNEL_INT_VECTOR {
                 self.emulated_kernel.syscall(function, accessor)
             } else if nr == USER_INT_VECTOR {
-                self.emulated_user.syscall(function, accessor)
+                let result = self.emulated_user.syscall(function, accessor)?;
+                match result {
+                    ReturnValue::U16(value) => {
+                        self.regs.write_gpr_16(Registers::REG_AX, value);
+                    }
+                    ReturnValue::U32(value) => {
+                        self.regs.write_gpr_16(Registers::REG_AX, value as u16);
+                        self.regs.write_gpr_16(Registers::REG_DX, (value >> 16) as u16);
+                    }
+                    ReturnValue::DelayedU16(value) => {
+                        self.memory.write_16(self.regs.flat_sp().wrapping_add(14), value)?;
+                    }
+                }
+                Ok(())
             } else if nr == GDI_INT_VECTOR {
                 self.emulated_gdi.syscall(function, accessor)
             } else if nr == KEYBOARD_INT_VECTOR {
