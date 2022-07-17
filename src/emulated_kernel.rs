@@ -1,7 +1,7 @@
-use crate::constants::{WF_80X87, WF_CPU386, WF_ENHANCED, WF_PAGING, WF_PMODE};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::registers::Registers;
 use crate::{debug, debug_print_null_terminated_string, EmulatorError};
+use crate::constants::WinFlags;
 
 pub struct EmulatedKernel {}
 
@@ -38,7 +38,7 @@ impl EmulatedKernel {
         debug!("[kernel] GET WINFLAGS");
         accessor.regs_mut().write_gpr_16(
             Registers::REG_AX,
-            WF_80X87 | WF_PAGING | WF_CPU386 | WF_PMODE | WF_ENHANCED,
+            (WinFlags::WF_80X87 | WinFlags::WF_PAGING | WinFlags::WF_CPU386 | WinFlags::WF_PMODE | WinFlags::WF_ENHANCED).bits(),
         );
         accessor.regs_mut().write_gpr_16(Registers::REG_DX, 0);
         Ok(())

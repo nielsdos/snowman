@@ -1,18 +1,23 @@
+use bitflags::bitflags;
+
 pub const KERNEL_INT_VECTOR: u8 = 0xff;
 pub const USER_INT_VECTOR: u8 = 0xfe;
 pub const GDI_INT_VECTOR: u8 = 0xfd;
 pub const KEYBOARD_INT_VECTOR: u8 = 0xfc;
 pub const LOWEST_SYSCALL_INT_VECTOR: u8 = 0xfc;
 
-// GETWINFLAGS
-pub const WF_80X87: u16 = 0x400;
-pub const WF_CPU286: u16 = 0x2;
-pub const WF_CPU386: u16 = 0x4;
-pub const WF_CPU486: u16 = 0x8;
-pub const WF_ENHANCED: u16 = 0x20;
-pub const WF_PAGING: u16 = 0x800;
-pub const WF_PMODE: u16 = 0x1;
-pub const WF_STANDARD: u16 = 0x10;
+bitflags! {
+    pub struct WinFlags: u16 {
+        const WF_80X87 = 0x400;
+        const WF_CPU286 = 0x2;
+        const WF_CPU386 = 0x4;
+        const WF_CPU486 = 0x8;
+        const WF_ENHANCED = 0x20;
+        const WF_PAGING = 0x800;
+        const WF_PMODE = 0x1;
+        const WF_STANDARD = 0x10;
+    }
+}
 
 // Window messages
 pub const WM_CREATE: u16 = 0x01;
