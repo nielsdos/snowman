@@ -23,17 +23,15 @@ pub struct Emulator<'a> {
 
 impl<'a> Emulator<'a> {
     pub fn new(
+        regs: Registers,
         memory: Memory,
-        ds: u16,
-        cs: u16,
-        ip: u16,
         emulated_kernel: EmulatedKernel,
         emulated_user: EmulatedUser<'a>,
         emulated_gdi: EmulatedGdi<'a>,
         emulated_keyboard: EmulatedKeyboard,
     ) -> Self {
         Self {
-            regs: Registers::new(ds, cs, ip),
+            regs,
             memory,
             emulated_kernel,
             emulated_user,

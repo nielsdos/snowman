@@ -8,6 +8,7 @@ use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
 use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
 use crate::object_environment::ObjectEnvironment;
+use crate::registers::Registers;
 use crate::screen::Screen;
 use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
@@ -616,10 +617,8 @@ fn process_file_ne(
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
+        Registers::new(0x123, 0, ip),
         memory,
-        0x123,
-        0,
-        ip,
         emulated_kernel,
         emulated_user,
         emulated_gdi,
