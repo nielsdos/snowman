@@ -522,23 +522,35 @@ impl<'a> Emulator<'a> {
 
     fn op_0x83(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm()?;
+        let current_destination_data = self.read_mod_rm_16(mod_rm)?;
         match mod_rm.register_destination() {
             0 => {
                 let data = self.read_ip_i8()?;
-                let result = self.read_mod_rm_16(mod_rm)?.wrapping_add(data as u16);
+                let result = current_destination_data.wrapping_add(data as u16);
+                let old_ip = self.regs.ip;
                 self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
                 self.regs.handle_arithmetic_result_u16(result, true);
+            }
+            1 => {
+                let data = self.read_ip_u8()?;
+                let result = current_destination_data | (data as u16);
+                let old_ip = self.regs.ip;
+                self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
+                self.regs.handle_bitwise_result_u16(result);
             }
             5 => {
                 let data = self.read_ip_i8()?;
-                let result = self.read_mod_rm_16(mod_rm)?.wrapping_sub(data as u16);
+                let result = current_destination_data.wrapping_sub(data as u16);
+                let old_ip = self.regs.ip;
                 self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
                 self.regs.handle_arithmetic_result_u16(result, true);
             }
             7 => {
-                let result = self.read_mod_rm_16(mod_rm)?;
                 let data = self.read_ip_i8()?;
-                let result = result.wrapping_sub(data as u16);
+                let result = current_destination_data.wrapping_sub(data as u16);
                 self.regs.handle_arithmetic_result_u16(result, true);
             }
             _ => {
@@ -706,9 +718,13 @@ impl<'a> Emulator<'a> {
             0x53 => self.push_gpr_16(Registers::REG_BX),
             0x54 => self.push_gpr_16(Registers::REG_SP),
             0x55 => self.push_gpr_16(Registers::REG_BP),
-            0x56 => self.pop_gpr_16(Registers::REG_SI),
-            0x57 => self.pop_gpr_16(Registers::REG_DI),
+            0x56 => self.push_gpr_16(Registers::REG_SI),
+            0x57 => self.push_gpr_16(Registers::REG_DI),
             0x58 => self.pop_gpr_16(Registers::REG_AX),
+            0x59 => self.pop_gpr_16(Registers::REG_CX),
+            0x5A => self.pop_gpr_16(Registers::REG_DX),
+            0x5B => self.pop_gpr_16(Registers::REG_BX),
+            0x5C => self.pop_gpr_16(Registers::REG_SP),
             0x5D => self.pop_gpr_16(Registers::REG_BP),
             0x5E => self.pop_gpr_16(Registers::REG_SI),
             0x5F => self.pop_gpr_16(Registers::REG_DI),
