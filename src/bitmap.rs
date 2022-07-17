@@ -65,6 +65,7 @@ impl Bitmap {
 
     pub fn fill_rectangle(&mut self, rect: Rect, color: Color) {
         let rect = self.clip(rect);
+        // TODO: check validity of rect
         for y in rect.top..rect.bottom {
             self.draw_horizontal_line_unclipped(rect.left, y, rect.right, color);
         }
