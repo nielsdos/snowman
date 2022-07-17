@@ -7,8 +7,7 @@ use crate::memory::SegmentAndOffset;
 use crate::message_queue::MessageQueue;
 
 pub struct UserWindow {
-    pub proc_segment: u16,
-    pub proc_offset: u16,
+    pub proc: SegmentAndOffset,
     pub message_queue: MessageQueue,
 }
 
@@ -25,15 +24,6 @@ pub struct ObjectEnvironment<'a> {
     pub user: HandleTable<UserObject>,
     pub gdi: HandleTable<GdiObject>,
     pub window_manager: &'a Mutex<WindowManager>,
-}
-
-impl UserWindow {
-    pub fn proc(&self) -> SegmentAndOffset {
-        SegmentAndOffset {
-            segment: self.proc_segment,
-            offset: self.proc_offset,
-        }
-    }
 }
 
 impl<'a> ObjectEnvironment<'a> {

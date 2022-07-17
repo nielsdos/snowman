@@ -7,7 +7,7 @@ use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWi
 use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
-use crate::{debug, EmulatorError};
+use crate::{debug, EmulatorError, Segment};
 use std::collections::HashMap;
 use std::sync::{LockResult, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::thread;
@@ -19,8 +19,7 @@ use crate::message_queue::MessageQueue;
 #[derive(Debug)]
 struct WindowClass<'a> {
     style: u16,
-    proc_segment: u16,
-    proc_offset: u16,
+    proc: SegmentAndOffset,
     cls_extra: u16,
     wnd_extra: u16,
     h_icon: Handle,
@@ -41,8 +40,7 @@ impl<'a> EmulatedUser<'a> {
         let mut window_classes = HashMap::new();
         window_classes.insert(ByteString::from_slice(b"BUTTON"), WindowClass {
             style: 0, // TODO
-            proc_segment: 0x1234,
-            proc_offset: 0,
+            proc: SegmentAndOffset { segment: 0x1234, offset: 0 },
             cls_extra: 0,
             wnd_extra: 0,
             h_icon: Handle::null(),
@@ -94,11 +92,10 @@ impl<'a> EmulatedUser<'a> {
         // TODO: support atom lookup here (that's the case if segment == 0)
         if let Some(class) = self.window_classes.get(&accessor.static_string(class_name)?) {
             let user_window = UserWindow {
-                proc_segment: class.proc_segment,
-                proc_offset: class.proc_offset,
+                proc: class.proc,
                 message_queue: MessageQueue::new(),
             };
-            let proc = user_window.proc();
+            let proc = user_window.proc;
             let window_handle = self
                 .write_objects()
                 .user
@@ -174,7 +171,7 @@ impl<'a> EmulatedUser<'a> {
         let success = match self.write_objects().user.get(h_wnd.into()) {
             Some(UserObject::Window(user_window)) => {
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(&mut accessor, user_window.proc(), h_wnd.into(), WM_PAINT, 0, 0)?;
+                self.call_wndproc_sync(&mut accessor, user_window.proc, h_wnd.into(), WM_PAINT, 0, 0)?;
                 true
             }
             None => false,
@@ -203,8 +200,7 @@ impl<'a> EmulatedUser<'a> {
         if let Some(atom) = self.user_atom_table.register(cloned_class_name.clone().into()) {
             let window_class = WindowClass {
                 style: wnd_class_style,
-                proc_segment: wnd_class_proc_segment,
-                proc_offset: wnd_class_proc_offset,
+                proc: SegmentAndOffset { segment: wnd_class_proc_segment, offset: wnd_class_proc_offset },
                 cls_extra: wnd_class_cls_extra,
                 wnd_extra: wnd_class_wnd_extra,
                 h_icon: wnd_class_h_icon.into(),
