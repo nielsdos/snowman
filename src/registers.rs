@@ -199,7 +199,7 @@ impl Registers {
         self.handle_bitwise_result_u_generic::<8>(result)
     }
 
-    pub fn handle_arithmetic_result_u_generic<const N: usize>(&mut self, result: u16) {
+    pub fn handle_arithmetic_result_u_generic<const N: usize>(&mut self, result: u16, affect_cf: bool) {
         // TODO: support CF, OF, AF
 
         // Clear the flags we can set here
@@ -221,12 +221,12 @@ impl Registers {
         }
     }
 
-    pub fn handle_arithmetic_result_u16(&mut self, result: u16) {
-        self.handle_arithmetic_result_u_generic::<16>(result)
+    pub fn handle_arithmetic_result_u16(&mut self, result: u16, affect_cf: bool) {
+        self.handle_arithmetic_result_u_generic::<16>(result, affect_cf)
     }
 
-    pub fn handle_arithmetic_result_u8(&mut self, result: u8) {
-        self.handle_arithmetic_result_u_generic::<8>(result as u16)
+    pub fn handle_arithmetic_result_u8(&mut self, result: u8, affect_cf: bool) {
+        self.handle_arithmetic_result_u_generic::<8>(result as u16, affect_cf)
     }
 
     pub fn flag_zero(&self) -> bool {
