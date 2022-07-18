@@ -529,14 +529,24 @@ impl<'a> EmulatedUser<'a> {
         }
     }
 
+    fn release_dc(&self, _h_wnd: Handle, hdc: Handle) -> bool {
+        // TODO: check whether the hdc belongs to the h_wnd ?
+        // TODO: this should probably cause a flip of the front and back bitmap for the given window
+        self.write_objects().gdi.deregister(hdc);
+        true
+    }
+
+    #[api_function]
+    fn internal_release_dc(&self, _h_wnd: Handle, hdc: Handle) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::U16(self.release_dc(_h_wnd, hdc).into()))
+    }
+
     fn end_paint(
         &self,
         _h_wnd: Handle,
         hdc: Handle,
     ) -> u16 {
-        // TODO: this should probably cause a flip of the front and back bitmap for the given window
-        self.write_objects().gdi.deregister(hdc);
-        1
+        self.release_dc(_h_wnd, hdc).into()
     }
 
     #[api_function]
@@ -593,6 +603,7 @@ impl<'a> EmulatedUser<'a> {
             42 => self.__api_show_window(emulator_accessor),
             57 => self.__api_register_class(emulator_accessor),
             66 => self.__api_internal_get_dc(emulator_accessor),
+            68 => self.__api_internal_release_dc(emulator_accessor),
             81 => self.__api_fill_rect(emulator_accessor),
             87 => self.__api_dialog_box(emulator_accessor),
             107 => self.__api_def_window_proc(emulator_accessor),
