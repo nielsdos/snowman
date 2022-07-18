@@ -1,4 +1,3 @@
-// TODO: proper errors
 #[derive(Debug)]
 pub enum EmulatorError {
     OutOfBounds,
