@@ -535,45 +535,12 @@ impl<'a> Emulator<'a> {
         }
     }
 
+    fn op_0x81(&mut self) -> Result<(), EmulatorError> {
+        self.op_0x81_0x83::<16>()
+    }
+
     fn op_0x83(&mut self) -> Result<(), EmulatorError> {
-        let mod_rm = self.read_ip_mod_rm()?;
-        let current_destination_data = self.read_mod_rm_16(mod_rm)?;
-        match mod_rm.register_destination() {
-            0 => {
-                let data = self.read_ip_i8()?;
-                let (result, result_did_carry) = current_destination_data.overflowing_add(data as u16);
-                let old_ip = self.regs.ip;
-                self.write_mod_rm_16(mod_rm, result)?;
-                self.regs.ip = old_ip;
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
-            }
-            1 => {
-                let data = self.read_ip_u8()?;
-                let result = current_destination_data | (data as u16);
-                let old_ip = self.regs.ip;
-                self.write_mod_rm_16(mod_rm, result)?;
-                self.regs.ip = old_ip;
-                self.regs.handle_bitwise_result_u16(result);
-            }
-            5 => {
-                let data = self.read_ip_i8()?;
-                let (result, result_did_carry) = current_destination_data.overflowing_sub(data as u16);
-                let old_ip = self.regs.ip;
-                self.write_mod_rm_16(mod_rm, result)?;
-                self.regs.ip = old_ip;
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
-            }
-            7 => {
-                let data = self.read_ip_i8()?;
-                let (result, result_did_carry) = current_destination_data.overflowing_sub(data as u16);
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
-            }
-            _ => {
-                debug!("[cpu] {}", mod_rm.register_destination());
-                unreachable!()
-            }
-        }
-        Ok(())
+        self.op_0x81_0x83::<8>()
     }
 
     fn cmp_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
@@ -652,6 +619,56 @@ impl<'a> Emulator<'a> {
 
     fn add_rm16_r16(&mut self) -> Result<(), EmulatorError> {
         self.add_rm_r::<16>()
+    }
+
+    fn op_0x81_0x83<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm()?;
+        let current_destination_data = self.read_mod_rm_16(mod_rm)?;
+        let mut read_data = |unsigned: bool| if N == 8 {
+            if unsigned {
+                self.read_ip_u8().map(|data| data as u16)
+            } else {
+                self.read_ip_i8().map(|data| data as u16)
+            }
+        } else {
+            self.read_ip_u16()
+        };
+        match mod_rm.register_destination() {
+            0 => {
+                let data = read_data(false)?;
+                let (result, result_did_carry) = current_destination_data.overflowing_add(data);
+                let old_ip = self.regs.ip;
+                self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+            }
+            1 => {
+                let data = read_data(true)?;
+                let result = current_destination_data | data;
+                let old_ip = self.regs.ip;
+                self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
+                self.regs.handle_bitwise_result_u16(result);
+            }
+            5 => {
+                let data = read_data(false)?;
+                let (result, result_did_carry) = current_destination_data.overflowing_sub(data);
+                let old_ip = self.regs.ip;
+                self.write_mod_rm_16(mod_rm, result)?;
+                self.regs.ip = old_ip;
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+            }
+            7 => {
+                let data = read_data(false)?;
+                let (result, result_did_carry) = current_destination_data.overflowing_sub(data);
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+            }
+            _ => {
+                debug!("[cpu] {}", mod_rm.register_destination());
+                unreachable!()
+            }
+        }
+        Ok(())
     }
 
     fn nop(&self) -> Result<(), EmulatorError> {
@@ -756,6 +773,7 @@ impl<'a> Emulator<'a> {
             0x75 => self.jcc(!self.regs.flag_zero()),
             0x7E => self
                 .jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x81 => self.op_0x81(),
             0x83 => self.op_0x83(),
             0x8B => self.mov_r16_rm16(),
             0x89 => self.mov_rm16_r16(),
