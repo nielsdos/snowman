@@ -18,6 +18,7 @@ pub trait Module {
 impl BaseModule {
     fn new(flat_address: u32, int_vector: u8) -> Self {
         Self {
+            // TODO: make sure the written bytes all stay within the same segment!
             flat_address: Cell::new(flat_address),
             last_write_offset: Cell::new(0),
             int_vector,
