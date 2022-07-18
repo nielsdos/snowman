@@ -1,5 +1,3 @@
-use crate::handle_table::Handle;
-
 pub struct Pointer(pub u32);
 
 pub enum ReturnValue {

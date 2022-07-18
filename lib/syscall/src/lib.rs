@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro_error::*;
 use quote::{format_ident, quote};
-use syn::{FnArg, ReturnType, Pat};
+use syn::{FnArg, Pat};
 use syn::Type;
 use quote::ToTokens;
 

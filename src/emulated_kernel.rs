@@ -20,13 +20,13 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn local_alloc(&self, flags: u16, size: u16) -> Result<ReturnValue, EmulatorError> {
+    fn local_alloc(&self, _flags: u16, _size: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO: this now always fails by returning NULL
         Ok(ReturnValue::U16(0))
     }
 
     #[api_function]
-    fn local_free(&self, handle: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn local_free(&self, _handle: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(0))
     }

@@ -8,7 +8,6 @@ use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_keyboard::EmulatedKeyboard;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::emulator_error::EmulatorError;
-use crate::handle_table::GenericHandle;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;

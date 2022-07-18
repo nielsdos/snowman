@@ -7,11 +7,9 @@ use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
 use crate::message_queue::MessageQueue;
 use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWindow};
-use crate::registers::Registers;
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
-use sdl2::keyboard::Keycode::Return;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
@@ -70,18 +68,18 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn create_window(
         &mut self,
-        mut accessor: EmulatorAccessor,
+        accessor: EmulatorAccessor,
         class_name: Pointer,
-        window_name: HeapByteString,
-        style: u32,
+        _window_name: HeapByteString,
+        _style: u32,
         x: u16,
         y: u16,
         width: u16,
         height: u16,
-        h_wnd_parent: Handle,
-        h_menu: Handle,
-        h_instance: Handle,
-        param: Pointer,
+        _h_wnd_parent: Handle,
+        _h_menu: Handle,
+        _h_instance: Handle,
+        _param: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         let class_name = accessor.static_string(class_name.0)?;
         println!("  > class name: {:?}", class_name);
@@ -132,7 +130,7 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn show_window(&self, h_wnd: Handle, cmd_show: u16) -> Result<ReturnValue, EmulatorError> {
+    fn show_window(&self, h_wnd: Handle, _cmd_show: u16) -> Result<ReturnValue, EmulatorError> {
         let objects = self.write_objects();
         let success = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
@@ -175,7 +173,7 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn register_class(
         &mut self,
-        mut accessor: EmulatorAccessor,
+        accessor: EmulatorAccessor,
         wnd_class_ptr: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         let wnd_class_style = accessor.memory().read_16(wnd_class_ptr.0)?;
@@ -234,7 +232,6 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn dialog_box(
         &self,
-        accessor: EmulatorAccessor,
         h_instance: Handle,
         template: Pointer,
         h_wnd_parent: Handle,
@@ -250,12 +247,12 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn get_message(
         &self,
-        msg: u32,
+        _msg: u32,
         h_wnd: Handle,
-        msg_filter_min: u16,
-        msg_filer_max: u16,
+        _msg_filter_min: u16,
+        _msg_filer_max: u16,
     ) -> Result<ReturnValue, EmulatorError> {
-        let message = match self.read_objects().user.get(h_wnd.into()) {
+        let message = match self.read_objects().user.get(h_wnd) {
             Some(UserObject::Window(user_window)) => user_window.message_queue.receive(),
             _ => None,
         };
@@ -349,7 +346,6 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn def_window_proc(
         &self,
-        mut accessor: EmulatorAccessor,
         h_wnd: Handle,
         msg: u16,
         w_param: u16,
@@ -370,11 +366,11 @@ impl<'a> EmulatedUser<'a> {
         paint: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         let mut objects = self.write_objects();
-        let display_device_handle_for_window = match objects.user.get(h_wnd.into()) {
+        let display_device_handle_for_window = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
                 let window_identifier = WindowIdentifier {
                     process_id: self.process_id(),
-                    window_handle: h_wnd.into(),
+                    window_handle: h_wnd,
                 };
                 if let Some(handle) = objects.gdi.register(GdiObject::DC(window_identifier)) {
                     accessor.memory_mut().write_16(paint.0, handle.as_u16())?;
@@ -400,8 +396,8 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn end_paint(
         &self,
-        mut accessor: EmulatorAccessor,
-        h_wnd: Handle,
+        accessor: EmulatorAccessor,
+        _h_wnd: Handle,
         paint: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         // TODO: this should probably cause a flip of the front and back bitmap for the given window
@@ -413,7 +409,7 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn fill_rect(
         &self,
-        mut accessor: EmulatorAccessor,
+        accessor: EmulatorAccessor,
         h_dc: Handle,
         rect: Pointer,
         h_brush: Handle,

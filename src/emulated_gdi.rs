@@ -2,7 +2,6 @@ use crate::api_helpers::{Pointer, ReturnValue};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::GdiObject;
-use crate::registers::Registers;
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
@@ -23,10 +22,10 @@ impl<'a> EmulatedGdi<'a> {
     #[api_function]
     fn create_dc(
         &self,
-        driver: Pointer,
-        device: Pointer,
-        port: Pointer,
-        pdm: Pointer,
+        _driver: Pointer,
+        _device: Pointer,
+        _port: Pointer,
+        _pdm: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         // TODO: this always indicates failure right now
         Ok(ReturnValue::U16(0))
@@ -40,13 +39,13 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn get_device_caps(&self, hdc: Handle, index: u16) -> Result<ReturnValue, EmulatorError> {
+    fn get_device_caps(&self, _hdc: Handle, _index: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(0))
     }
 
     #[api_function]
-    fn add_font_resource(&self, pointer: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn add_font_resource(&self, _pointer: Pointer) -> Result<ReturnValue, EmulatorError> {
         // TODO: this always indicates failure right now
         Ok(ReturnValue::U16(0))
     }
@@ -68,7 +67,7 @@ impl<'a> EmulatedGdi<'a> {
         // TODO: which objects may get deleted?
         // TODO: check if it is selected into a DC, in that case: fail ?
         Ok(ReturnValue::U16(
-            self.write_objects().gdi.deregister(handle.into()) as u16,
+            self.write_objects().gdi.deregister(handle) as u16,
         ))
     }
 
