@@ -1,3 +1,4 @@
+use crate::api_helpers::ReturnValue;
 use crate::constants::{
     GDI_INT_VECTOR, KERNEL_INT_VECTOR, KEYBOARD_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR,
     USER_INT_VECTOR,
@@ -7,12 +8,11 @@ use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_keyboard::EmulatedKeyboard;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::emulator_error::EmulatorError;
+use crate::handle_table::GenericHandle;
 use crate::memory::Memory;
 use crate::mod_rm::ModRM;
 use crate::registers::Registers;
 use crate::{debug, EmulatedUser};
-use crate::api_helpers::ReturnValue;
-use crate::handle_table::GenericHandle;
 
 pub struct Emulator<'a> {
     regs: Registers,
@@ -452,30 +452,33 @@ impl<'a> Emulator<'a> {
             // System call handler
             let function = self.regs.read_gpr_16(Registers::REG_AX);
             let accessor = EmulatorAccessor::new(&mut self.memory, &mut self.regs);
-            if nr == KERNEL_INT_VECTOR {
+            let result = if nr == KERNEL_INT_VECTOR {
                 self.emulated_kernel.syscall(function, accessor)
             } else if nr == USER_INT_VECTOR {
-                let result = self.emulated_user.syscall(function, accessor)?;
-                match result {
-                    ReturnValue::U16(value) => {
-                        self.regs.write_gpr_16(Registers::REG_AX, value);
-                    }
-                    ReturnValue::U32(value) => {
-                        self.regs.write_gpr_16(Registers::REG_AX, value as u16);
-                        self.regs.write_gpr_16(Registers::REG_DX, (value >> 16) as u16);
-                    }
-                    ReturnValue::DelayedU16(value) => {
-                        self.memory.write_16(self.regs.flat_sp().wrapping_add(14), value)?;
-                    }
-                }
-                Ok(())
+                self.emulated_user.syscall(function, accessor)
             } else if nr == GDI_INT_VECTOR {
                 self.emulated_gdi.syscall(function, accessor)
             } else if nr == KEYBOARD_INT_VECTOR {
                 self.emulated_keyboard.syscall(function, accessor)
             } else {
                 Err(EmulatorError::Exit)
+            }?;
+            match result {
+                ReturnValue::U16(value) => {
+                    self.regs.write_gpr_16(Registers::REG_AX, value);
+                }
+                ReturnValue::U32(value) => {
+                    self.regs.write_gpr_16(Registers::REG_AX, value as u16);
+                    self.regs
+                        .write_gpr_16(Registers::REG_DX, (value >> 16) as u16);
+                }
+                ReturnValue::DelayedU16(value) => {
+                    self.memory
+                        .write_16(self.regs.flat_sp().wrapping_add(14), value)?;
+                }
+                ReturnValue::None => {}
             }
+            Ok(())
         } else {
             Err(EmulatorError::Exit)
         }

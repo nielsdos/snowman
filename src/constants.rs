@@ -8,7 +8,7 @@ pub const LOWEST_SYSCALL_INT_VECTOR: u8 = 0xfc;
 
 bitflags! {
     #[allow(dead_code)]
-    pub struct WinFlags: u16 {
+    pub struct WinFlags: u32 {
         const WF_80X87 = 0x400;
         const WF_CPU286 = 0x2;
         const WF_CPU386 = 0x4;

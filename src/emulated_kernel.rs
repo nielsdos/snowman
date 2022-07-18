@@ -1,7 +1,10 @@
+use crate::api_helpers::{Pointer, ReturnValue};
 use crate::constants::WinFlags;
 use crate::emulator_accessor::EmulatorAccessor;
+use crate::handle_table::Handle;
 use crate::registers::Registers;
 use crate::{debug, debug_print_null_terminated_string, EmulatorError};
+use syscall::api_function;
 
 pub struct EmulatedKernel {}
 
@@ -10,52 +13,38 @@ impl EmulatedKernel {
         Self {}
     }
 
-    fn get_version(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        debug!("[kernel] GET VERSION");
+    #[api_function]
+    fn get_version(&self) -> Result<ReturnValue, EmulatorError> {
         // Report version Windows 3.10
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0x0A03);
-        Ok(())
+        Ok(ReturnValue::U16(0x0A03))
     }
 
-    fn local_alloc(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let size = accessor.word_argument(0)?;
-        let flags = accessor.word_argument(1)?;
-        debug!("[kernel] LOCAL ALLOC {} {:x}", size, flags);
+    #[api_function]
+    fn local_alloc(&self, flags: u16, size: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO: this now always fails by returning NULL
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
-        Ok(())
+        Ok(ReturnValue::U16(0))
     }
 
-    fn local_free(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let handle = accessor.word_argument(0)?;
-        debug!("[kernel] LOCAL FREE {:x}", handle);
+    #[api_function]
+    fn local_free(&self, handle: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 0);
-        Ok(())
+        Ok(ReturnValue::U16(0))
     }
 
-    fn get_winflags(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        debug!("[kernel] GET WINFLAGS");
-        accessor.regs_mut().write_gpr_16(
-            Registers::REG_AX,
-            (WinFlags::WF_80X87
-                | WinFlags::WF_PAGING
-                | WinFlags::WF_CPU386
-                | WinFlags::WF_PMODE
-                | WinFlags::WF_ENHANCED)
-                .bits(),
-        );
-        accessor.regs_mut().write_gpr_16(Registers::REG_DX, 0);
-        Ok(())
+    #[api_function]
+    fn get_winflags(&self) -> Result<ReturnValue, EmulatorError> {
+        let flags = (WinFlags::WF_80X87 | WinFlags::WF_PMODE | WinFlags::WF_ENHANCED).bits();
+        Ok(ReturnValue::U32(flags))
     }
 
-    fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+    #[api_function]
+    fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<ReturnValue, EmulatorError> {
         debug!("[kernel] INIT TASK");
 
         let regs = accessor.regs_mut();
 
         // TODO: hardcoded to inittask rn
-        regs.write_gpr_16(Registers::REG_AX, 0x10); // TODO: must be = DS I believe
+        let es = 0x10;
         regs.write_gpr_16(Registers::REG_BX, 0x1234); // TODO: offset into command line
         regs.write_gpr_16(Registers::REG_CX, 0); // TODO: stack limit
         regs.write_gpr_16(Registers::REG_DX, 0); // TODO: nCmdShow
@@ -63,115 +52,117 @@ impl EmulatedKernel {
         regs.write_gpr_16(Registers::REG_DI, 0xBEEF); // TODO: instance handle
         regs.write_gpr_16(Registers::REG_BP, regs.read_gpr_16(Registers::REG_SP));
         // TODO: segments
-        regs.write_segment(Registers::REG_ES, 0x10); // TODO
+        regs.write_segment(Registers::REG_ES, es); // TODO
 
-        Ok(())
+        // TODO: must be = ES I believe
+        Ok(ReturnValue::U16(es))
     }
 
-    fn lock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        debug!("[kernel] LOCK SEGMENT {:x}", accessor.word_argument(0)?);
-        // TODO
-        Ok(())
+    #[api_function]
+    fn lock_segment(&self, _segment: u16) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::None)
     }
 
-    fn unlock_segment(&self, accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        debug!("[kernel] UNLOCK SEGMENT {:x}", accessor.word_argument(0)?);
-        // TODO
-        Ok(())
+    #[api_function]
+    fn unlock_segment(&self, _segment: u16) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::None)
     }
 
-    fn wait_event(&self) -> Result<(), EmulatorError> {
-        debug!("[kernel] WAIT EVENT");
-
-        Ok(())
-        // TODO?
+    #[api_function]
+    fn wait_event(&self) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::None)
     }
 
-    fn make_proc_instance(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
+    #[api_function]
+    fn make_proc_instance(
+        &self,
+        _h_instance: Handle,
+        offset_of_function: u16,
+        segment_of_function: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
         // As we don't share segments in the same way as a 16-bit Windows might do,
         // we don't need to set up any thunks. We just need to make sure the return value is
         // equal to the original function address.
-        let segment_of_function = accessor.word_argument(2)?;
-        let offset_of_function = accessor.word_argument(1)?;
-        //let h_instance = accessor.number_argument(0)?;
-        accessor
-            .regs_mut()
-            .write_gpr_16(Registers::REG_AX, offset_of_function);
-        accessor
-            .regs_mut()
-            .write_gpr_16(Registers::REG_DX, segment_of_function);
-        Ok(())
+        Ok(ReturnValue::U32(
+            ((segment_of_function as u32) << 16) | (offset_of_function as u32),
+        ))
     }
 
-    fn get_profile_int(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let default = accessor.word_argument(0)?;
-        let key_name = accessor.pointer_argument(1)?;
-        let app_name = accessor.pointer_argument(3)?;
-        debug!("[kernel] GET PROFILE INT {}", default);
-        debug_print_null_terminated_string(&accessor, key_name);
-        debug_print_null_terminated_string(&accessor, app_name);
-        // TODO
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, default);
-        Ok(())
+    #[api_function]
+    fn get_profile_int(
+        &self,
+        accessor: EmulatorAccessor,
+        app_name: Pointer,
+        key_name: Pointer,
+        default: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        debug_print_null_terminated_string(&accessor, key_name.0);
+        debug_print_null_terminated_string(&accessor, app_name.0);
+        Ok(ReturnValue::U16(default))
     }
 
-    fn find_resource(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let _type = accessor.pointer_argument(0)?;
-        let name = accessor.pointer_argument(2)?;
-        let module = accessor.word_argument(4)?;
-        debug!("[kernel] FIND RESOURCE {:x} {:x} {:x}", _type, name, module);
+    #[api_function]
+    fn find_resource(
+        &self,
+        module: Handle,
+        name: Pointer,
+        _type: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
+        debug!(
+            "[kernel] FIND RESOURCE {:x} {:x} {:?}",
+            _type.0, name.0, module
+        );
         // TODO: this returns a hardcoded handle
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
-        Ok(())
+        Ok(ReturnValue::U16(1))
     }
 
-    fn load_resource(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        let res_info = accessor.word_argument(0)?;
-        let module = accessor.word_argument(1)?;
-        debug!("[kernel] LOAD RESOURCE {:x} {:x}", module, res_info);
+    #[api_function]
+    fn load_resource(
+        &self,
+        module: Handle,
+        res_info: Handle,
+    ) -> Result<ReturnValue, EmulatorError> {
+        debug!("[kernel] LOAD RESOURCE {:?} {:?}", module, res_info);
         // TODO: this returns a hardcoded handle
-        accessor.regs_mut().write_gpr_16(Registers::REG_AX, 1);
-        Ok(())
+        Ok(ReturnValue::U16(1))
     }
 
-    fn get_profile_string(&self, mut accessor: EmulatorAccessor) -> Result<(), EmulatorError> {
-        // TODO: for some reason incorrect?
-        let size = accessor.word_argument(0)?;
-        let returned_string = accessor.pointer_argument(1)?;
-        let default = accessor.pointer_argument(3)?;
-        let _key_name = accessor.pointer_argument(5)?;
-        let _app_name = accessor.pointer_argument(7)?;
+    #[api_function]
+    fn get_profile_string(
+        &self,
+        mut accessor: EmulatorAccessor,
+        _app_name: Pointer,
+        _key_name: Pointer,
+        default: Pointer,
+        returned_string: Pointer,
+        size: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        // TODO: arguments seem for some reason incorrect?
         debug!("[kernel] GET PROFILE STRING {}", size);
         // TODO: honor size etc etc
-        let number_of_bytes_copied = accessor.copy_string(default, returned_string)?;
-        accessor
-            .regs_mut()
-            .write_gpr_16(Registers::REG_AX, (number_of_bytes_copied >> 16) as u16);
-        accessor
-            .regs_mut()
-            .write_gpr_16(Registers::REG_DX, number_of_bytes_copied as u16);
-        Ok(())
+        let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
+        Ok(ReturnValue::U32(number_of_bytes_copied))
     }
 
     pub fn syscall(
         &self,
         nr: u16,
         emulator_accessor: EmulatorAccessor,
-    ) -> Result<(), EmulatorError> {
+    ) -> Result<ReturnValue, EmulatorError> {
         match nr {
-            3 => self.get_version(emulator_accessor),
-            5 => self.local_alloc(emulator_accessor),
-            7 => self.local_free(emulator_accessor),
-            23 => self.lock_segment(emulator_accessor),
-            24 => self.unlock_segment(emulator_accessor),
-            30 => self.wait_event(),
-            51 => self.make_proc_instance(emulator_accessor),
-            57 => self.get_profile_int(emulator_accessor),
-            60 => self.find_resource(emulator_accessor),
-            61 => self.load_resource(emulator_accessor),
-            58 => self.get_profile_string(emulator_accessor),
-            91 => self.init_task(emulator_accessor),
-            132 => self.get_winflags(emulator_accessor),
+            3 => self.__api_get_version(emulator_accessor),
+            5 => self.__api_local_alloc(emulator_accessor),
+            7 => self.__api_local_free(emulator_accessor),
+            23 => self.__api_lock_segment(emulator_accessor),
+            24 => self.__api_unlock_segment(emulator_accessor),
+            30 => self.__api_wait_event(emulator_accessor),
+            51 => self.__api_make_proc_instance(emulator_accessor),
+            57 => self.__api_get_profile_int(emulator_accessor),
+            60 => self.__api_find_resource(emulator_accessor),
+            61 => self.__api_load_resource(emulator_accessor),
+            58 => self.__api_get_profile_string(emulator_accessor),
+            91 => self.__api_init_task(emulator_accessor),
+            132 => self.__api_get_winflags(emulator_accessor),
             nr => {
                 todo!("unimplemented kernel syscall {}", nr)
             }

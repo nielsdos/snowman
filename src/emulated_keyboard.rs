@@ -1,3 +1,4 @@
+use crate::api_helpers::ReturnValue;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::EmulatorError;
 
@@ -12,7 +13,7 @@ impl EmulatedKeyboard {
         &self,
         nr: u16,
         _emulator_accessor: EmulatorAccessor,
-    ) -> Result<(), EmulatorError> {
+    ) -> Result<ReturnValue, EmulatorError> {
         match nr {
             nr => {
                 todo!("unimplemented keyboard syscall {}", nr)

@@ -110,7 +110,10 @@ impl<'a> EmulatorAccessor<'a> {
             let current = src_ptr.saturating_add(length);
             let data = self.memory.read_8(current)?;
             if data == 0 {
-                return self.memory.slice(src_ptr, current).map(ByteString::from_slice);
+                return self
+                    .memory
+                    .slice(src_ptr, current)
+                    .map(ByteString::from_slice);
             }
             length += 1;
         }

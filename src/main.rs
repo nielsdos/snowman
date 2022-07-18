@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
+mod api_helpers;
 mod atom_table;
 mod bitmap;
 mod bitvector_allocator;
@@ -42,7 +43,6 @@ mod screen;
 mod two_d;
 mod util;
 mod window_manager;
-mod api_helpers;
 
 struct MZResult {
     pub ne_header_offset: usize,
