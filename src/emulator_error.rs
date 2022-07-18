@@ -3,4 +3,5 @@ pub enum EmulatorError {
     OutOfBounds,
     Exit,
     InvalidOpcode,
+    DivideError,
 }

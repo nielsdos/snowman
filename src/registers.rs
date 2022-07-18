@@ -175,11 +175,8 @@ impl Registers {
         }
     }
 
-    pub fn handle_bitwise_result_u_generic<const N: usize>(&mut self, result: u16) {
-        // Clear OF & CF, and the flags we can set here
-        self.flags &=
-            !(Self::FLAG_CF | Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF);
-        // Set SF, ZF, PF flags according to result
+    /// Set SF, ZF, PF flags according to result
+    fn set_zf_pf_sf<const N: usize>(&mut self, result: u16) {
         let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
         if result == 0 {
             self.flags |= Self::FLAG_ZF | Self::FLAG_PF;
@@ -191,12 +188,22 @@ impl Registers {
         }
     }
 
-    pub fn handle_bitwise_result_u16(&mut self, result: u16) {
-        self.handle_bitwise_result_u_generic::<16>(result)
+    pub fn handle_bitwise_result_u_generic<const N: usize>(&mut self, result_did_carry: bool, result: u16) {
+        // Clear OF & CF, and the flags we can set here
+        self.flags &=
+            !(Self::FLAG_CF | Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF);
+        self.set_zf_pf_sf::<N>(result);
+        if result_did_carry {
+            self.flags |= Self::FLAG_CF;
+        }
     }
 
-    pub fn handle_bitwise_result_u8(&mut self, result: u16) {
-        self.handle_bitwise_result_u_generic::<8>(result)
+    pub fn handle_bitwise_result_u16(&mut self, result_did_carry: bool, result: u16) {
+        self.handle_bitwise_result_u_generic::<16>(result_did_carry, result)
+    }
+
+    pub fn handle_bitwise_result_u8(&mut self, result_did_carry: bool, result: u16) {
+        self.handle_bitwise_result_u_generic::<8>(result_did_carry, result)
     }
 
     pub fn handle_arithmetic_result_u_generic<const N: usize>(
@@ -219,16 +226,7 @@ impl Registers {
             | Self::FLAG_ZF
             | Self::FLAG_PF
             | Self::FLAG_AF);
-        // Set flags according to result
-        let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
-        if result == 0 {
-            self.flags |= Self::FLAG_ZF | Self::FLAG_PF;
-        } else if result & highest_bit_flag > 0 {
-            self.flags |= Self::FLAG_SF;
-            if (result.count_ones() & 1) == 0 {
-                self.flags |= Self::FLAG_PF;
-            }
-        }
+        self.set_zf_pf_sf::<N>(result);
     }
 
     pub fn handle_arithmetic_result_u16(&mut self, result: u16, result_did_carry: bool, affect_cf: bool) {
