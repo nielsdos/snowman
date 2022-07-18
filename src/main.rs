@@ -283,6 +283,7 @@ fn validate_segment_index_and_offset(
 
 struct ModuleReferenceTable {
     modules: Vec<Box<dyn Module>>,
+    user_module_index: Option<usize>,
 }
 
 impl ModuleReferenceTable {
@@ -304,6 +305,7 @@ fn process_module_reference_table(
 
     let mut module_reference_table = ModuleReferenceTable {
         modules: Vec::with_capacity(module_reference_count as usize),
+        user_module_index: None,
     };
 
     for module_index in 0..module_reference_count {
@@ -324,6 +326,7 @@ fn process_module_reference_table(
                 .modules
                 .push(Box::new(KernelModule::new(0x10 * 0x1000))); // TODO: better address
         } else if module_name == b"USER" {
+            module_reference_table.user_module_index = Some(module_reference_table.modules.len());
             module_reference_table
                 .modules
                 .push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
@@ -608,10 +611,19 @@ fn process_file_ne(
     )
     .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
 
+    let button_wnd_proc = module_reference_table.user_module_index
+        .ok_or(ExecutableFormatError::Memory)
+        .and_then(|user_module_index| {
+            module_reference_table.modules[user_module_index]
+                .base_module()
+                .procedure(&mut memory, 0xffff, 10)
+                .map_err(|_| ExecutableFormatError::Memory)
+        })?;
+
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let objects = RwLock::new(ObjectEnvironment::new(window_manager));
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new(&objects);
+    let emulated_user = EmulatedUser::new(&objects, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(

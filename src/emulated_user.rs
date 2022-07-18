@@ -35,16 +35,13 @@ pub struct EmulatedUser<'a> {
 }
 
 impl<'a> EmulatedUser<'a> {
-    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
+    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>, button_wnd_proc: SegmentAndOffset) -> Self {
         let mut window_classes = HashMap::new();
-        /*window_classes.insert(
+        window_classes.insert(
             ByteString::from_slice(b"BUTTON"),
             WindowClass {
                 style: 0, // TODO
-                proc: SegmentAndOffset {
-                    segment: 0x1234,
-                    offset: 0,
-                },
+                proc: button_wnd_proc,
                 cls_extra: 0,
                 wnd_extra: 0,
                 h_icon: Handle::null(),
@@ -52,7 +49,7 @@ impl<'a> EmulatedUser<'a> {
                 h_background: Handle::null(), // TODO
                 menu_class_name: None,
             },
-        );*/
+        );
         Self {
             user_atom_table: AtomTable::new(),
             window_classes,
@@ -359,6 +356,21 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
+    fn button_window_proc(
+        &self,
+        h_wnd: Handle,
+        msg: u16,
+        w_param: u16,
+        l_param: u32,
+    ) -> Result<ReturnValue, EmulatorError> {
+        debug!(
+            "[user] BUTTON WINDOW PROC {:?} {:x} {:x} {:x}",
+            h_wnd, msg, w_param, l_param
+        );
+        Ok(ReturnValue::U16(0))
+    }
+
+    #[api_function]
     fn begin_paint(
         &self,
         mut accessor: EmulatorAccessor,
@@ -453,6 +465,7 @@ impl<'a> EmulatedUser<'a> {
             176 => self.__api_load_string(emulator_accessor),
             179 => self.__api_get_system_metrics(emulator_accessor),
             420 => self.__api_wsprintf(emulator_accessor),
+            0xffff => self.__api_button_window_proc(emulator_accessor),
             nr => {
                 todo!("unimplemented user syscall {}", nr)
             }
