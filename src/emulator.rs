@@ -824,6 +824,22 @@ impl<'a> Emulator<'a> {
         }
     }
 
+    fn inc16(&mut self, reg: u8) -> Result<(), EmulatorError> {
+        let data = self.regs.read_gpr_16(reg);
+        let result = data.wrapping_add(1);
+        self.regs.handle_arithmetic_result_u16(result, false, false);
+        self.regs.write_gpr_16(reg, result);
+        Ok(())
+    }
+
+    fn dec16(&mut self, reg: u8) -> Result<(), EmulatorError> {
+        let data = self.regs.read_gpr_16(reg);
+        let result = data.wrapping_sub(1);
+        self.regs.handle_arithmetic_result_u16(result, false, false);
+        self.regs.write_gpr_16(reg, result);
+        Ok(())
+    }
+
     pub fn execute_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
             0x00 => self.add_rm8_r8(),
@@ -846,6 +862,22 @@ impl<'a> Emulator<'a> {
             0x32 => self.xor_r_rm_generic::<8>(),
             0x33 => self.xor_r_rm_generic::<16>(),
             0x39 => self.cmp_rm16_r16(),
+            0x40 => self.inc16(Registers::REG_AX),
+            0x41 => self.inc16(Registers::REG_CX),
+            0x42 => self.inc16(Registers::REG_DX),
+            0x43 => self.inc16(Registers::REG_BX),
+            0x44 => self.inc16(Registers::REG_SP),
+            0x45 => self.inc16(Registers::REG_BP),
+            0x46 => self.inc16(Registers::REG_SI),
+            0x47 => self.inc16(Registers::REG_DI),
+            0x48 => self.dec16(Registers::REG_AX),
+            0x49 => self.dec16(Registers::REG_CX),
+            0x4A => self.dec16(Registers::REG_DX),
+            0x4B => self.dec16(Registers::REG_BX),
+            0x4C => self.dec16(Registers::REG_SP),
+            0x4D => self.dec16(Registers::REG_BP),
+            0x4E => self.dec16(Registers::REG_SI),
+            0x4F => self.dec16(Registers::REG_DI),
             0x50 => self.push_gpr_16(Registers::REG_AX),
             0x51 => self.push_gpr_16(Registers::REG_CX),
             0x52 => self.push_gpr_16(Registers::REG_DX),

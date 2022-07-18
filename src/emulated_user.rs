@@ -268,7 +268,6 @@ impl<'a> EmulatedUser<'a> {
                 "[user] REGISTER CLASS SUCCESS {:?} => {:#?}",
                 cloned_class_name, window_class
             );
-            todo!("this is just a checkup");
             if self
                 .window_classes
                 .insert(cloned_class_name.into(), window_class)
