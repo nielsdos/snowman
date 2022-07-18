@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+use chrono::{Datelike, Timelike, Weekday};
 use crate::api_helpers::ReturnValue;
 use crate::constants::{
     GDI_INT_VECTOR, KERNEL_INT_VECTOR, KEYBOARD_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR,
@@ -464,6 +466,30 @@ impl<'a> Emulator<'a> {
                 // Get DOS version, fake MS-DOS 5.0
                 // TODO: only al and ah are set right now
                 self.regs.write_gpr_16(Registers::REG_AX, 0x0050);
+                return Ok(());
+            } else if ah == 0x2A {
+                // Get system date
+                let time = chrono::offset::Local::now();
+                self.regs.write_gpr_16(Registers::REG_CX, time.year() as u16);
+                self.regs.write_gpr_hi_8(Registers::REG_DH, time.month() as u8);
+                self.regs.write_gpr_lo_8(Registers::REG_DL, time.day() as u8);
+                self.regs.write_gpr_lo_8(Registers::REG_AL, match time.weekday() {
+                    Weekday::Mon => 1,
+                    Weekday::Tue => 2,
+                    Weekday::Wed => 3,
+                    Weekday::Thu => 4,
+                    Weekday::Fri => 5,
+                    Weekday::Sat => 6,
+                    Weekday::Sun => 0,
+                });
+                return Ok(());
+            } else if ah == 0x2C {
+                // Get system time
+                let time = chrono::offset::Local::now();
+                self.regs.write_gpr_hi_8(Registers::REG_CH, time.hour() as u8);
+                self.regs.write_gpr_lo_8(Registers::REG_CL, time.minute() as u8);
+                self.regs.write_gpr_hi_8(Registers::REG_DH, time.second() as u8);
+                self.regs.write_gpr_lo_8(Registers::REG_DL, (time.timestamp_subsec_millis() / 10) as u8);
                 return Ok(());
             }
             Err(EmulatorError::Exit)
