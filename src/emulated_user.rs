@@ -459,10 +459,7 @@ impl<'a> EmulatedUser<'a> {
         })
     }
 
-    fn begin_paint(
-        &self,
-        h_wnd: Handle,
-    ) -> Option<Paint> {
+    fn get_dc(&self, h_wnd: Handle) -> Option<Handle> {
         let mut objects = self.write_objects();
         match objects.user.get(h_wnd) {
             Some(UserObject::Window(user_window)) => {
@@ -479,23 +476,33 @@ impl<'a> EmulatedUser<'a> {
                     (window_identifier, Point::origin())
                 };
                 let dc = DeviceContext { bitmap_window_identifier, translation };
-                objects.gdi.register(GdiObject::DC(dc)).map(|hdc| {
-                    // TODO: set f_erase
-                    // TODO: fix right and bottom of rect
-                    Paint {
-                        hdc,
-                        f_erase: false,
-                        rect: Rect {
-                            left: 0,
-                            top: 0,
-                            right: 200,
-                            bottom: 200,
-                        },
-                    }
-                })
+                objects.gdi.register(GdiObject::DC(dc))
             }
             None => None,
         }
+    }
+
+    #[api_function]
+    fn internal_get_dc(&self, h_wnd: Handle) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::U16(self.get_dc(h_wnd).unwrap_or(Handle::null()).as_u16()))
+    }
+
+    fn begin_paint(
+        &self,
+        h_wnd: Handle,
+    ) -> Option<Paint> {
+        self.get_dc(h_wnd).map(|hdc| {
+            Paint {
+                hdc,
+                f_erase: false,
+                rect: Rect {
+                    left: 0,
+                    top: 0,
+                    right: 200,
+                    bottom: 200,
+                },
+            }
+        })
     }
 
     #[api_function]
@@ -585,6 +592,7 @@ impl<'a> EmulatedUser<'a> {
             41 => self.__api_create_window(emulator_accessor),
             42 => self.__api_show_window(emulator_accessor),
             57 => self.__api_register_class(emulator_accessor),
+            66 => self.__api_internal_get_dc(emulator_accessor),
             81 => self.__api_fill_rect(emulator_accessor),
             87 => self.__api_dialog_box(emulator_accessor),
             107 => self.__api_def_window_proc(emulator_accessor),

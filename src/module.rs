@@ -128,7 +128,7 @@ impl UserModule {
 impl Module for UserModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            5 | 124 | 179 => 2,
+            5 | 66 | 124 | 179 => 2,
             42 | 57 => 4,
             39 | 40 | 173 => 6,
             81 => 8,
