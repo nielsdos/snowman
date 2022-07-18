@@ -71,6 +71,15 @@ impl<'a> EmulatedGdi<'a> {
         ))
     }
 
+    #[api_function]
+    fn muldiv(&self, a: u16, b: u16, c: u16) -> Result<ReturnValue, EmulatorError> {
+        let mul = (a as u32) * (b as u32);
+        // Add half the denominator for rounding
+        let mul_with_half_denominator = mul.wrapping_add(((c as u32) >> 1));
+        let result = mul_with_half_denominator.checked_div(c as u32).and_then(|result| u16::try_from(result).ok()).unwrap_or(0xffff);
+        Ok(ReturnValue::U16(result))
+    }
+
     pub fn syscall(
         &self,
         nr: u16,
@@ -83,6 +92,7 @@ impl<'a> EmulatedGdi<'a> {
             69 => self.__api_delete_object(emulator_accessor),
             80 => self.__api_get_device_caps(emulator_accessor),
             119 => self.__api_add_font_resource(emulator_accessor),
+            128 => self.__api_muldiv(emulator_accessor),
             nr => {
                 todo!("unimplemented gdi syscall {}", nr)
             }
