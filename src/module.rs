@@ -194,3 +194,27 @@ impl Module for KeyboardModule {
         &self.base_module
     }
 }
+
+pub struct DummyModule {
+    base_module: BaseModule,
+}
+
+impl DummyModule {
+    pub fn new(flat_address: u32) -> Self {
+        Self {
+            base_module: BaseModule::new(flat_address, KEYBOARD_INT_VECTOR),
+        }
+    }
+}
+
+impl Module for DummyModule {
+    fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
+        match procedure {
+            _ => 0,
+        }
+    }
+
+    fn base_module(&self) -> &BaseModule {
+        &self.base_module
+    }
+}

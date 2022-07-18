@@ -6,7 +6,7 @@ use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
-use crate::module::{GdiModule, KernelModule, KeyboardModule, Module, UserModule};
+use crate::module::{DummyModule, GdiModule, KernelModule, KeyboardModule, Module, UserModule};
 use crate::object_environment::ObjectEnvironment;
 use crate::registers::Registers;
 use crate::screen::Screen;
@@ -55,9 +55,9 @@ fn main() -> Result<(), String> {
     let window_manager_clone = window_manager.clone();
     let _exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
-        //let path = "../vms/CLOCK.EXE";
+        let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";
-        let path = "../Win16asm/hw.exe";
+        //let path = "../Win16asm/hw.exe";
         start_executable(path, &window_manager_clone);
     });
 
@@ -340,6 +340,9 @@ fn process_module_reference_table(
                 .push(Box::new(KeyboardModule::new(0x10 * 0x9000))); // TODO: better address
         } else {
             // TODO
+            module_reference_table
+                .modules
+                .push(Box::new(DummyModule::new(0x10 * 0x7000))); // TODO: better address
         }
     }
 
@@ -436,13 +439,16 @@ fn perform_relocations(
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
                     // Relocate kernel system call
+                    println!("TEST {}", import.index_into_module_reference_table);
                     let module =
                         module_reference_table.module(import.index_into_module_reference_table)?;
+                    println!("TEST done");
                     let segment_and_offset = module.base_module().procedure(
                         memory,
                         import.procedure_ordinal_number,
                         module.argument_bytes_of_procedure(import.procedure_ordinal_number),
                     )?;
+
 
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
@@ -570,12 +576,14 @@ fn process_file_ne(
     let mut memory = Memory::new();
 
     // Setup default trampolines
+    debug!("Setup default trampoline");
     for module in &module_reference_table.modules {
         module
             .base_module()
             .write_syscall_proc_return_trampoline(&mut memory)
             .map_err(|_| ExecutableFormatError::Memory)?;
     }
+    debug!("Setup default trampoline done");
 
     // TODO: handle all segments (including 0 segment rules)
     let data_segment = &segment_table[ds as usize - 1];
@@ -588,12 +596,15 @@ fn process_file_ne(
         data_segment.logical_sector_offset as usize,
         data_segment.length_of_segment_in_file as usize,
     )?;
+    debug!("Copy segments");
     memory
         .copy_from(code_bytes, 0)
         .map_err(|_| ExecutableFormatError::Memory)?; // TODO: code offset & segment
     memory
         .copy_from(data_bytes, 0x123 * 0x10)
         .map_err(|_| ExecutableFormatError::Memory)?; // TODO: data offset & segment
+    debug!("Copy segments done");
+    debug!("Perform relocations");
     perform_relocations(
         &mut memory,
         0,
@@ -610,6 +621,7 @@ fn process_file_ne(
         data_segment,
     )
     .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
+    debug!("Perform relocations done");
 
     let button_wnd_proc = module_reference_table.user_module_index
         .ok_or(ExecutableFormatError::Memory)
