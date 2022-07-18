@@ -639,6 +639,15 @@ impl<'a> Emulator<'a> {
         self.sub_r_rm::<16>()
     }
 
+    fn sub_ax_imm16(&mut self) -> Result<(), EmulatorError> {
+        // TODO: generalise with sub_r16_imm16
+        let data = self.read_ip_u16()?;
+        let (result, result_did_carry) = self.regs.read_gpr_16(Registers::REG_AX).overflowing_sub(data);
+        self.regs.write_gpr_16(Registers::REG_AX, result);
+        self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+        Ok(())
+    }
+
     fn add_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let (result, result_did_carry) = self
@@ -852,8 +861,10 @@ impl<'a> Emulator<'a> {
             0x0E => self.push_segment_16(Registers::REG_CS),
             0x16 => self.push_segment_16(Registers::REG_SS),
             0x1E => self.push_segment_16(Registers::REG_DS),
+            0x1F => self.pop_segment_16(Registers::REG_DS),
             0x26 => self.segment_override_es(),
             0x2A => self.sub_r8_rm8(),
+            0x2D => self.sub_ax_imm16(),
             0x2B => self.sub_r16_rm16(),
             0x3B => self.cmp_r16_rm16(),
             0x3C => self.cmp_r8_rm8(),
