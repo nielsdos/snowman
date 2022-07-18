@@ -5,15 +5,15 @@ use crate::constants::{ClassStyles, MessageType};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
-use crate::object_environment::{GdiObject, ObjectEnvironment, UserObject, UserWindow};
+use crate::object_environment::{DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow};
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
-use crate::bitmap::{Bitmap, Color};
-use crate::two_d::Rect;
+use crate::bitmap::{Bitmap, BitmapView, Color};
+use crate::two_d::{Point, Rect};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -107,7 +107,7 @@ impl<'a> EmulatedUser<'a> {
                     }
                 }
 
-                objects.window_manager().create_window(
+                objects.write_window_manager().create_window(
                     WindowIdentifier {
                         window_handle,
                         process_id: self.process_id(),
@@ -146,7 +146,7 @@ impl<'a> EmulatedUser<'a> {
         let success = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
-                objects.window_manager().show_window(WindowIdentifier {
+                objects.write_window_manager().show_window(WindowIdentifier {
                     window_handle: h_wnd,
                     process_id: self.process_id(),
                 });
@@ -392,22 +392,23 @@ impl<'a> EmulatedUser<'a> {
         if msg == MessageType::Paint.into() {
             // Paint button
             if let Some(paint) = self.begin_paint(h_wnd) {
-                {
-                    let objects = self.read_objects();
-                    self.with_paint_bitmap_for(paint.hdc, &objects, &|bitmap| {
-                        // TODO
-                        bitmap.fill_rectangle(Rect {
-                            top: 10,
-                            left: 10,
-                            right: 20,
-                            bottom: 20,
-                        }, Color(255, 255, 0))
-                    });
-                }
+                let objects = self.read_objects();
+                let bg_rect = self.get_client_rect(h_wnd, &objects);
+                self.with_paint_bitmap_for(paint.hdc, &objects, &|mut bitmap| {
+                    bitmap.fill_rectangle(bg_rect, Color(255, 255, 0))
+                });
+                drop(objects);
                 self.end_paint(h_wnd, paint.hdc);
             }
         }
         Ok(ReturnValue::U16(0))
+    }
+
+    fn get_client_rect(&self, h_wnd: Handle, objects: &RwLockReadGuard<ObjectEnvironment>) -> Rect {
+        objects.read_window_manager().client_rect_of(WindowIdentifier {
+            process_id: self.process_id(),
+            window_handle: h_wnd,
+        })
     }
 
     fn begin_paint(
@@ -421,12 +422,15 @@ impl<'a> EmulatedUser<'a> {
                     process_id: self.process_id(),
                     window_handle: h_wnd,
                 };
-                let dc = if user_window.parent_dc {
+                let (bitmap_window_identifier, translation) = if user_window.parent_dc {
                     // TODO: nested CS_PARENTDC: how to handle them?
-                    window_identifier.other_handle(user_window.parent_handle)
+                    let translation = objects.read_window_manager().position_of(window_identifier).unwrap_or(Point::origin());
+                    let parent_window_identifier = window_identifier.other_handle(user_window.parent_handle);
+                    (parent_window_identifier, translation)
                 } else {
-                    window_identifier
+                    (window_identifier, Point::origin())
                 };
+                let dc = DeviceContext { bitmap_window_identifier, translation };
                 objects.gdi.register(GdiObject::DC(dc)).map(|hdc| {
                     // TODO: set f_erase
                     // TODO: fix right and bottom of rect
@@ -492,11 +496,11 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(self.end_paint(_h_wnd, handle.into())))
     }
 
-    fn with_paint_bitmap_for(&self, h_dc: Handle, objects: &RwLockReadGuard<ObjectEnvironment>, f: &dyn Fn(&mut Bitmap)) {
-        if let Some(GdiObject::DC(window_identifier)) = objects.gdi.get(h_dc) {
+    fn with_paint_bitmap_for(&self, h_dc: Handle, objects: &RwLockReadGuard<ObjectEnvironment>, f: &dyn Fn(BitmapView)) {
+        if let Some(GdiObject::DC(device_context)) = objects.gdi.get(h_dc) {
             if let Some(bitmap) = objects
-                .window_manager()
-                .paint_bitmap_for(*window_identifier)
+                .write_window_manager()
+                .paint_bitmap_for_dc(device_context)
             {
                 f(bitmap)
             }
@@ -514,7 +518,7 @@ impl<'a> EmulatedUser<'a> {
         let rect = accessor.read_rect(rect.0)?;
         let objects = self.read_objects();
         if let Some(GdiObject::SolidBrush(color)) = objects.gdi.get(h_brush) {
-            self.with_paint_bitmap_for(h_dc, &objects, &|bitmap| {
+            self.with_paint_bitmap_for(h_dc, &objects, &|mut bitmap| {
                 bitmap.fill_rectangle(rect, *color)
             });
         }

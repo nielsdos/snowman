@@ -49,7 +49,7 @@ struct MZResult {
 }
 
 fn main() -> Result<(), String> {
-    let window_manager = Arc::new(Mutex::<WindowManager>::new(WindowManager::new()));
+    let window_manager = Arc::new(RwLock::new(WindowManager::new()));
 
     // Start one executable
     let window_manager_clone = window_manager.clone();
@@ -66,7 +66,7 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn start_executable(path: &str, window_manager: &Mutex<WindowManager>) {
+fn start_executable(path: &str, window_manager: &RwLock<WindowManager>) {
     let mut bytes = std::fs::read(path).expect("test file should exist");
     let mut executable = Executable::new(bytes.as_mut_slice());
     println!("{:?}", process_file(&mut executable, window_manager));
@@ -508,7 +508,7 @@ fn perform_relocations(
 fn process_file_ne(
     executable: &mut Executable,
     ne_header_offset: usize,
-    window_manager: &Mutex<WindowManager>,
+    window_manager: &RwLock<WindowManager>,
 ) -> Result<(), ExecutableFormatError> {
     let old_cursor = executable.seek_from_start(ne_header_offset)?;
     executable.validate_magic_id(0, b"NE")?;
@@ -642,7 +642,7 @@ fn process_file_ne(
 
 fn process_file(
     executable: &mut Executable,
-    window_manager: &Mutex<WindowManager>,
+    window_manager: &RwLock<WindowManager>,
 ) -> Result<(), ExecutableFormatError> {
     let mz_result = process_file_mz(executable)?;
     process_file_ne(executable, mz_result.ne_header_offset, window_manager)

@@ -4,7 +4,8 @@ use crate::memory::SegmentAndOffset;
 use crate::message_queue::MessageQueue;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::two_d::Point;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,
@@ -18,15 +19,20 @@ pub enum UserObject {
     Window(UserWindow),
 }
 
+pub struct DeviceContext {
+    pub bitmap_window_identifier: WindowIdentifier,
+    pub translation: Point,
+}
+
 pub enum GdiObject {
-    DC(WindowIdentifier),
+    DC(DeviceContext),
     SolidBrush(Color),
 }
 
 pub struct ObjectEnvironment<'a> {
     pub user: HandleTable<UserObject>,
     pub gdi: HandleTable<GdiObject>,
-    pub window_manager: &'a Mutex<WindowManager>,
+    pub window_manager: &'a RwLock<WindowManager>,
 }
 
 impl UserWindow {
@@ -42,7 +48,7 @@ impl UserWindow {
 }
 
 impl<'a> ObjectEnvironment<'a> {
-    pub fn new(window_manager: &'a Mutex<WindowManager>) -> Self {
+    pub fn new(window_manager: &'a RwLock<WindowManager>) -> Self {
         Self {
             user: HandleTable::new(),
             gdi: HandleTable::new(),
@@ -50,7 +56,11 @@ impl<'a> ObjectEnvironment<'a> {
         }
     }
 
-    pub fn window_manager(&self) -> MutexGuard<'_, WindowManager> {
-        self.window_manager.lock().unwrap()
+    pub fn read_window_manager(&self) -> RwLockReadGuard<WindowManager> {
+        self.window_manager.read().unwrap()
+    }
+
+    pub fn write_window_manager(&self) -> RwLockWriteGuard<WindowManager> {
+        self.window_manager.write().unwrap()
     }
 }

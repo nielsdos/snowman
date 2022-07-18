@@ -1,4 +1,5 @@
-use crate::two_d::Rect;
+use std::ops::{Deref, DerefMut};
+use crate::two_d::{Point, Rect};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -9,28 +10,64 @@ impl Color {
     }
 }
 
+pub struct BitmapView<'a> {
+    bitmap: &'a mut Bitmap,
+    translation: Point,
+}
+
 pub struct Bitmap {
     // TODO: should probably not use a vec?
     pixels: Vec<Color>,
+    translation: Point,
     width: u16,
     height: u16,
+}
+
+impl<'a> BitmapView<'a> {
+    pub fn new(bitmap: &'a mut Bitmap, translation: Point) -> Self {
+        println!("Translated bitmap {:?}", translation);
+        bitmap.translation += translation;
+        Self { bitmap, translation }
+    }
+}
+
+impl<'a> Deref for BitmapView<'a> {
+    type Target = &'a mut Bitmap;
+
+    fn deref(&self) -> &Self::Target {
+        &self.bitmap
+    }
+}
+
+impl<'a> DerefMut for BitmapView<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.bitmap
+    }
+}
+
+impl<'a> Drop for BitmapView<'a> {
+    fn drop(&mut self) {
+        self.bitmap.translation -= self.translation;
+    }
 }
 
 impl Bitmap {
     pub fn new(width: u16, height: u16) -> Self {
         Self {
             pixels: vec![Color(255, 255, 255); (width as usize) * (height as usize)],
+            translation: Point::origin(),
             width,
             height,
         }
     }
 
     pub fn clip(&self, rect: Rect) -> Rect {
+        // TODO: kinda icky
         Rect {
-            left: rect.left.clamp(0, self.width),
-            top: rect.top.clamp(0, self.height),
-            right: rect.right.clamp(0, self.width),
-            bottom: rect.bottom.clamp(0, self.height),
+            left: rect.left.clamp(0, self.width.wrapping_sub(self.translation.x)),
+            top: rect.top.clamp(0, self.height.wrapping_sub(self.translation.y)),
+            right: rect.right.clamp(0, self.width.wrapping_sub(self.translation.x)),
+            bottom: rect.bottom.clamp(0, self.height.wrapping_sub(self.translation.y)),
         }
     }
 
@@ -45,6 +82,8 @@ impl Bitmap {
     }
 
     fn index_for(&self, x: u16, y: u16) -> usize {
+        let x = x.wrapping_add(self.translation.x);
+        let y = y.wrapping_add(self.translation.y);
         (y as usize) * (self.width as usize) + (x as usize)
     }
 

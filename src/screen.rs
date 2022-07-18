@@ -6,7 +6,7 @@ use sdl2::pixels::Color;
 use sdl2::rect::Point;
 use sdl2::render::WindowCanvas;
 use sdl2::Sdl;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -17,11 +17,11 @@ pub struct ScreenCanvas {
 pub struct Screen {
     sdl_context: Sdl,
     canvas: ScreenCanvas,
-    window_manager: Arc<Mutex<WindowManager>>,
+    window_manager: Arc<RwLock<WindowManager>>,
 }
 
 impl Screen {
-    pub fn new(window_manager: Arc<Mutex<WindowManager>>) -> Result<Self, String> {
+    pub fn new(window_manager: Arc<RwLock<WindowManager>>) -> Result<Self, String> {
         // Setup window
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
@@ -59,7 +59,7 @@ impl Screen {
                 }
             }
             {
-                self.window_manager.lock().unwrap().paint(&mut self.canvas);
+                self.window_manager.write().unwrap().paint(&mut self.canvas);
             }
             self.canvas.canvas.present();
             thread::sleep(Duration::new(0, 1_000_000_000u32 / 30));
@@ -68,8 +68,8 @@ impl Screen {
 }
 
 impl ScreenCanvas {
-    pub fn blit_bitmap(&mut self, x: u16, y: u16, bitmap: &Bitmap) {
-        let top_left = Point::new(x as i32, y as i32);
+    pub fn blit_bitmap(&mut self, position: crate::two_d::Point, bitmap: &Bitmap) {
+        let top_left = Point::new(position.x as i32, position.y as i32);
 
         for y in 0..bitmap.height() {
             for x in 0..bitmap.width() {
