@@ -29,7 +29,6 @@ bitflags! {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Eq, PartialEq)]
 pub enum MessageType {
     Create = 0x01,
@@ -41,4 +40,30 @@ impl From<MessageType> for u16 {
     fn from(m: MessageType) -> Self {
         m as u16
     }
+}
+
+#[allow(dead_code)]
+#[derive(Eq, PartialEq)]
+pub enum SystemColors {
+    Scrollbar,
+    Background,
+    ActiveCaption,
+    InactiveCaption,
+    Menu,
+    Window,
+    WindowFrame,
+    MenuText,
+    WindowText,
+    CaptionText,
+    ActiveBorder,
+    InactiveBorder,
+    AppWorkspace,
+    Highlight,
+    HighlightText,
+    ButtonFace,
+    ButtonShadow,
+    GrayText,
+    ButtonText,
+    InactiveCaptionText,
+    ButtonHighlight,
 }

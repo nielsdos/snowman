@@ -61,13 +61,22 @@ impl Bitmap {
         }
     }
 
+    fn clip_x(&self, x: u16) -> u16 {
+        // TODO: edge cases?
+        x.clamp(0, self.width.saturating_sub(self.translation.x))
+    }
+
+    fn clip_y(&self, y: u16) -> u16 {
+        // TODO: edge cases?
+        y.clamp(0, self.height.saturating_sub(self.translation.y))
+    }
+
     pub fn clip(&self, rect: Rect) -> Rect {
-        // TODO: kinda icky
         Rect {
-            left: rect.left.clamp(0, self.width.wrapping_sub(self.translation.x)),
-            top: rect.top.clamp(0, self.height.wrapping_sub(self.translation.y)),
-            right: rect.right.clamp(0, self.width.wrapping_sub(self.translation.x)),
-            bottom: rect.bottom.clamp(0, self.height.wrapping_sub(self.translation.y)),
+            left: self.clip_x(rect.left),
+            top: self.clip_y(rect.top),
+            right: self.clip_x(rect.right),
+            bottom: self.clip_y(rect.bottom),
         }
     }
 
@@ -98,11 +107,27 @@ impl Bitmap {
         self.pixels[start_index..end_index].fill(color);
     }
 
+    fn draw_vertical_line_unclipped(&mut self, x: u16, y_start: u16, y_to: u16, color: Color) {
+        for y in y_start..y_to {
+            let index = self.index_for(x, y);
+            self.pixels[index] = color;
+        }
+    }
+
+    pub fn draw_vertical_line(&mut self, x: u16, y_start: u16, y_to: u16, color: Color) {
+        self.draw_vertical_line_unclipped(
+            self.clip_x(x),
+            self.clip_y(y_start),
+            self.clip_y(y_to),
+            color,
+        )
+    }
+
     pub fn draw_horizontal_line(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
         self.draw_horizontal_line_unclipped(
-            x_start.clamp(0, self.width),
-            y.clamp(0, self.height),
-            x_to.clamp(0, self.width),
+            self.clip_x(x_start),
+            self.clip_y(y),
+            self.clip_x(x_to),
             color,
         )
     }

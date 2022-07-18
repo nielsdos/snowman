@@ -1,7 +1,7 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::atom_table::AtomTable;
 use crate::byte_string::{ByteString, HeapByteString};
-use crate::constants::{ClassStyles, MessageType};
+use crate::constants::{ClassStyles, MessageType, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
@@ -53,7 +53,7 @@ impl<'a> EmulatedUser<'a> {
                 wnd_extra: 0,
                 h_icon: Handle::null(),
                 h_cursor: Handle::null(),
-                h_background: Handle::null(), // TODO
+                h_background: Handle::null(),
                 menu_class_name: None,
             },
         );
@@ -61,6 +61,32 @@ impl<'a> EmulatedUser<'a> {
             user_atom_table: AtomTable::new(),
             window_classes,
             objects,
+        }
+    }
+
+    fn get_system_color(&self, color: SystemColors) -> Color {
+        match color {
+            SystemColors::Background => Color(192, 192, 192),
+            SystemColors::AppWorkspace => Color(255, 255, 255),
+            SystemColors::Window => Color(255, 255, 255),
+            SystemColors::WindowText => Color(0, 0, 0),
+            SystemColors::Menu => Color(255, 255, 255),
+            SystemColors::MenuText => Color(0, 0, 0),
+            SystemColors::ActiveCaption => Color(0, 0, 128),
+            SystemColors::InactiveCaption => Color(255, 255, 255),
+            SystemColors::WindowFrame => Color(0, 0, 0),
+            SystemColors::Scrollbar => Color(192, 192, 192),
+            SystemColors::ButtonFace => Color(192, 192, 192),
+            SystemColors::ButtonShadow => Color(128, 128, 128),
+            SystemColors::ButtonText => Color(0, 0, 0),
+            SystemColors::GrayText => Color(192, 192, 192),
+            SystemColors::Highlight => Color(0, 0, 128),
+            SystemColors::HighlightText => Color(255, 255, 255),
+            SystemColors::InactiveCaptionText => Color(0, 0, 0),
+            SystemColors::ButtonHighlight => Color(255, 255, 255),
+            SystemColors::CaptionText => Color(255, 255, 255),
+            SystemColors::ActiveBorder => Color(192, 192, 192),
+            SystemColors::InactiveBorder => Color(192, 192, 192),
         }
     }
 
@@ -393,9 +419,31 @@ impl<'a> EmulatedUser<'a> {
             // Paint button
             if let Some(paint) = self.begin_paint(h_wnd) {
                 let objects = self.read_objects();
-                let bg_rect = self.get_client_rect(h_wnd, &objects);
+                let containing_rect = self.get_client_rect(h_wnd, &objects);
                 self.with_paint_bitmap_for(paint.hdc, &objects, &|mut bitmap| {
-                    bitmap.fill_rectangle(bg_rect, Color(255, 255, 0))
+                    // Black rounded frame
+                    bitmap.draw_horizontal_line(1, 0, containing_rect.right.wrapping_sub(1), self.get_system_color(SystemColors::WindowFrame));
+                    bitmap.draw_horizontal_line(1, containing_rect.bottom.saturating_sub(1), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
+                    bitmap.draw_vertical_line(0, 1, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
+                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(1), 1, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
+
+                    // Highlight top
+                    bitmap.draw_horizontal_line(1, 1, containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonHighlight));
+                    bitmap.draw_horizontal_line(1, 2, containing_rect.right.saturating_sub(2), self.get_system_color(SystemColors::ButtonHighlight));
+                    // Highlight left
+                    bitmap.draw_vertical_line(1, 3, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::ButtonHighlight));
+                    bitmap.draw_vertical_line(2, 3, containing_rect.bottom.saturating_sub(2), self.get_system_color(SystemColors::ButtonHighlight));
+
+                    // Shadow right
+                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(2), 1, containing_rect.bottom.saturating_sub(3), self.get_system_color(SystemColors::ButtonShadow));
+                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(3), 2, containing_rect.bottom.saturating_sub(3), self.get_system_color(SystemColors::ButtonShadow));
+                    // Shadow bottom
+                    bitmap.draw_horizontal_line(2, containing_rect.bottom.saturating_sub(3), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonShadow));
+                    bitmap.draw_horizontal_line(1, containing_rect.bottom.saturating_sub(2), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonShadow));
+
+                    // Face
+                    let bg_rect = containing_rect.shrink(3);
+                    bitmap.fill_rectangle(bg_rect, self.get_system_color(SystemColors::ButtonFace));
                 });
                 drop(objects);
                 self.end_paint(h_wnd, paint.hdc);

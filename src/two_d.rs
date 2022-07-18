@@ -62,4 +62,14 @@ impl Rect {
             bottom: 0
         }
     }
+
+    pub fn shrink(&self, amount: u16) -> Self {
+        // TODO: make sure it stays valid
+        Rect {
+            left: self.left.saturating_add(amount),
+            top: self.top.saturating_add(amount),
+            bottom: self.bottom.saturating_sub(amount),
+            right: self.right.saturating_sub(amount),
+        }
+    }
 }
