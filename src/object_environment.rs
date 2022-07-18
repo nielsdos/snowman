@@ -1,5 +1,5 @@
 use crate::bitmap::Color;
-use crate::handle_table::HandleTable;
+use crate::handle_table::{Handle, HandleTable};
 use crate::memory::SegmentAndOffset;
 use crate::message_queue::MessageQueue;
 use crate::window_manager::WindowIdentifier;
@@ -8,7 +8,10 @@ use std::sync::{Mutex, MutexGuard};
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,
+    pub parent_dc: bool,
+    pub parent_handle: Handle,
     pub message_queue: MessageQueue,
+    pub children: Vec<Handle>,
 }
 
 pub enum UserObject {
@@ -24,6 +27,18 @@ pub struct ObjectEnvironment<'a> {
     pub user: HandleTable<UserObject>,
     pub gdi: HandleTable<GdiObject>,
     pub window_manager: &'a Mutex<WindowManager>,
+}
+
+impl UserWindow {
+    pub fn new(proc: SegmentAndOffset, parent_dc: bool, parent_handle: Handle) -> Self {
+        Self {
+            proc,
+            message_queue: MessageQueue::new(),
+            children: Vec::new(),
+            parent_dc,
+            parent_handle,
+        }
+    }
 }
 
 impl<'a> ObjectEnvironment<'a> {

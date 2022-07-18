@@ -38,6 +38,10 @@ impl<K: GenericHandle, V> GenericHandleTable<K, V> {
     pub fn get(&self, handle: K) -> Option<&V> {
         self.internal_table.get(&handle)
     }
+
+    pub fn get_mut(&mut self, handle: K) -> Option<&mut V> {
+        self.internal_table.get_mut(&handle)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]

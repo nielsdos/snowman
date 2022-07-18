@@ -8,7 +8,7 @@ struct Window {
     y: u16,
     width: u16,
     height: u16,
-    front_bitmap: Bitmap,
+    front_bitmap: Option<Bitmap>,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone)]
@@ -31,6 +31,15 @@ pub struct WindowManager {
     windows: HashMap<WindowIdentifier, Window>,
 }
 
+impl WindowIdentifier {
+    pub fn other_handle(&self, child_handle: Handle) -> Self {
+        Self {
+            process_id: self.process_id,
+            window_handle: child_handle,
+        }
+    }
+}
+
 impl WindowManager {
     pub fn new() -> Self {
         Self {
@@ -46,6 +55,7 @@ impl WindowManager {
         y: u16,
         width: u16,
         height: u16,
+        use_parent_bitmap: bool,
     ) {
         // TODO: set sane limits for arguments?
         let number_or_default = |number: u16| {
@@ -66,7 +76,11 @@ impl WindowManager {
                 y: number_or_default(y),
                 width,
                 height,
-                front_bitmap: Bitmap::new(width, height),
+                front_bitmap: if use_parent_bitmap {
+                    None
+                } else {
+                    Some(Bitmap::new(width, height))
+                },
             },
         );
     }
@@ -78,18 +92,18 @@ impl WindowManager {
         self.window_stack.push(identifier);
     }
 
-    pub fn paint(&self, screen: &mut ScreenCanvas) {
+    pub fn paint(&mut self, screen: &mut ScreenCanvas) {
         // TODO: be more efficient than always redrawing everything
         for identifier in &self.window_stack {
             if let Some(window) = self.windows.get(identifier) {
-                screen.blit_bitmap(window.x, window.y, &window.front_bitmap);
+                if let Some(bitmap) = &window.front_bitmap {
+                    screen.blit_bitmap(window.x, window.y, bitmap);
+                }
             }
         }
     }
 
     pub fn paint_bitmap_for(&mut self, identifier: WindowIdentifier) -> Option<&mut Bitmap> {
-        self.windows
-            .get_mut(&identifier)
-            .map(|window| &mut window.front_bitmap)
+        self.windows.get_mut(&identifier).and_then(|window| window.front_bitmap.as_mut())
     }
 }

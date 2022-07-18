@@ -20,6 +20,15 @@ bitflags! {
     }
 }
 
+bitflags! {
+    #[allow(dead_code)]
+    pub struct ClassStyles: u16 {
+        const VREDRAW = 0x001;
+        const HREDRAW = 0x002;
+        const PARENT_DC = 0x080;
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Eq, PartialEq)]
 pub enum MessageType {

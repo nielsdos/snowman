@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct Rect {
     pub left: u16,
     pub top: u16,
