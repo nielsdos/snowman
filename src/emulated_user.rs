@@ -11,6 +11,7 @@ use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use num_traits::FromPrimitive;
 use syscall::api_function;
 use crate::bitmap::{Bitmap, BitmapView, Color};
 use crate::two_d::{Point, Rect};
@@ -62,6 +63,13 @@ impl<'a> EmulatedUser<'a> {
             window_classes,
             objects,
         }
+    }
+
+    #[api_function]
+    fn internal_get_sys_color(&self, index: u16) -> Result<ReturnValue, EmulatorError> {
+        let system_color: Option<SystemColors> = FromPrimitive::from_u16(index);
+        let color = system_color.map(|color| self.get_system_color(color)).unwrap_or(Color(0, 0, 0));
+        Ok(ReturnValue::U32(color.as_u32()))
     }
 
     fn get_system_color(&self, color: SystemColors) -> Color {
@@ -612,6 +620,7 @@ impl<'a> EmulatedUser<'a> {
             173 => self.__api_load_cursor(emulator_accessor),
             176 => self.__api_load_string(emulator_accessor),
             179 => self.__api_get_system_metrics(emulator_accessor),
+            180 => self.__api_internal_get_sys_color(emulator_accessor),
             420 => self.__api_wsprintf(emulator_accessor),
             0xffff => self.__api_button_window_proc(emulator_accessor),
             nr => {

@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use num_derive::{FromPrimitive, ToPrimitive};
 
 pub const KERNEL_INT_VECTOR: u8 = 0xff;
 pub const USER_INT_VECTOR: u8 = 0xfe;
@@ -43,7 +44,7 @@ impl From<MessageType> for u16 {
 }
 
 #[allow(dead_code)]
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum SystemColors {
     Scrollbar,
     Background,

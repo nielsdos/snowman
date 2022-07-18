@@ -18,6 +18,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
+#[macro_use]
+extern crate num_derive;
 mod api_helpers;
 mod atom_table;
 mod bitmap;

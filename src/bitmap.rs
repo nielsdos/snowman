@@ -8,6 +8,13 @@ impl Color {
     pub fn from(color: u32) -> Self {
         Self(color as u8, (color >> 8) as u8, (color >> 16) as u8)
     }
+
+    pub fn as_u32(&self) -> u32 {
+        let r = self.0 as u32;
+        let g = self.0 as u32;
+        let b = self.0 as u32;
+        r | (g << 8) | (b << 16)
+    }
 }
 
 pub struct BitmapView<'a> {
