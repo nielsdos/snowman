@@ -22,12 +22,15 @@ impl EmulatedKernel {
     #[api_function]
     fn local_alloc(&self, _flags: u16, _size: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO: this now always fails by returning NULL
+        println!("{:x} {:x}", _flags, _size);
+        //assert!(false);
         Ok(ReturnValue::U16(0))
     }
 
     #[api_function]
     fn local_free(&self, _handle: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
+        //assert!(false);
         Ok(ReturnValue::U16(0))
     }
 
@@ -141,7 +144,38 @@ impl EmulatedKernel {
         debug!("[kernel] GET PROFILE STRING {}", size);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
-        Ok(ReturnValue::U32(number_of_bytes_copied))
+        Ok(ReturnValue::U16(number_of_bytes_copied))
+    }
+
+    #[api_function]
+    fn global_lock(&self, h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U32(0))
+    }
+
+    #[api_function]
+    fn global_unlock(&self, h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(1))
+    }
+
+    #[api_function]
+    fn get_private_profile_int(&self, accessor: EmulatorAccessor, app_name: Pointer, key_name: Pointer, default: u16, file_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+        debug_print_null_terminated_string(&accessor, app_name.0);
+        debug_print_null_terminated_string(&accessor, key_name.0);
+        debug_print_null_terminated_string(&accessor, file_name.0);
+        // TODO
+        Ok(ReturnValue::U16(default))
+    }
+
+    #[api_function]
+    fn get_private_profile_string(&self, mut accessor: EmulatorAccessor, app_name: Pointer, key_name: Pointer, default: Pointer, returned_string: Pointer, size: u16, file_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+        debug_print_null_terminated_string(&accessor, app_name.0);
+        debug_print_null_terminated_string(&accessor, key_name.0);
+        debug_print_null_terminated_string(&accessor, file_name.0);
+        // TODO: honor size etc etc
+        let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
+        Ok(ReturnValue::U16(number_of_bytes_copied))
     }
 
     pub fn syscall(
@@ -153,6 +187,8 @@ impl EmulatedKernel {
             3 => self.__api_get_version(emulator_accessor),
             5 => self.__api_local_alloc(emulator_accessor),
             7 => self.__api_local_free(emulator_accessor),
+            18 => self.__api_global_lock(emulator_accessor),
+            19 => self.__api_global_unlock(emulator_accessor),
             23 => self.__api_lock_segment(emulator_accessor),
             24 => self.__api_unlock_segment(emulator_accessor),
             30 => self.__api_wait_event(emulator_accessor),
@@ -162,6 +198,8 @@ impl EmulatedKernel {
             61 => self.__api_load_resource(emulator_accessor),
             58 => self.__api_get_profile_string(emulator_accessor),
             91 => self.__api_init_task(emulator_accessor),
+            127 => self.__api_get_private_profile_int(emulator_accessor),
+            128 => self.__api_get_private_profile_string(emulator_accessor),
             132 => self.__api_get_winflags(emulator_accessor),
             nr => {
                 todo!("unimplemented kernel syscall {}", nr)

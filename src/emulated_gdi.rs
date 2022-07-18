@@ -1,10 +1,11 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
-use crate::object_environment::GdiObject;
+use crate::object_environment::{GdiObject, Pen};
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
+use crate::constants::DeviceCapRequest;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
@@ -39,9 +40,24 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn get_device_caps(&self, _hdc: Handle, _index: u16) -> Result<ReturnValue, EmulatorError> {
-        // TODO
-        Ok(ReturnValue::U16(0))
+    fn get_device_caps(&self, _hdc: Handle, index: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("Get caps: {}", index);
+        if index == DeviceCapRequest::HorzRes.into() {
+            // TODO: screen width (in mm ???)
+            Ok(ReturnValue::U16(800 * 28))
+        } else if index == DeviceCapRequest::HorzSize.into() {
+            // TODO: screen width in pixels
+            Ok(ReturnValue::U16(800))
+        } else if index == DeviceCapRequest::VertRes.into() {
+            // TODO: screen height (in mm ???)
+            Ok(ReturnValue::U16(600 * 28))
+        } else if index == DeviceCapRequest::VertSize.into() {
+            // TODO: screen height in pixels
+            Ok(ReturnValue::U16(600))
+        } else {
+            // TODO
+            Ok(ReturnValue::U16(0))
+        }
     }
 
     #[api_function]
@@ -58,6 +74,23 @@ impl<'a> EmulatedGdi<'a> {
             .write_objects()
             .gdi
             .register(GdiObject::SolidBrush(color))
+            .unwrap_or(Handle::null());
+        Ok(ReturnValue::U16(handle.as_u16()))
+    }
+
+    #[api_function]
+    fn create_pen(&self, style: u16, width: u16, color: u32) -> Result<ReturnValue, EmulatorError> {
+        let width = width.max(1);
+        // TODO: validation of with wrt style
+        // TODO: do we have to take into account the alpha channel?
+        let color = crate::bitmap::Color::from(color);
+        let handle = self
+            .write_objects()
+            .gdi
+            .register(GdiObject::Pen(Pen {
+                width,
+                color,
+            }))
             .unwrap_or(Handle::null());
         Ok(ReturnValue::U16(handle.as_u16()))
     }
@@ -87,6 +120,7 @@ impl<'a> EmulatedGdi<'a> {
     ) -> Result<ReturnValue, EmulatorError> {
         match nr {
             53 => self.__api_create_dc(emulator_accessor),
+            61 => self.__api_create_pen(emulator_accessor),
             66 => self.__api_create_solid_brush(emulator_accessor),
             68 => self.__api_delete_dc(emulator_accessor),
             69 => self.__api_delete_object(emulator_accessor),

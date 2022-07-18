@@ -44,7 +44,7 @@ impl From<MessageType> for u16 {
 }
 
 #[allow(dead_code)]
-#[derive(Eq, PartialEq, FromPrimitive, ToPrimitive)]
+#[derive(Eq, PartialEq, FromPrimitive)]
 pub enum SystemColors {
     Scrollbar,
     Background,
@@ -67,4 +67,19 @@ pub enum SystemColors {
     ButtonText,
     InactiveCaptionText,
     ButtonHighlight,
+}
+
+#[allow(dead_code)]
+#[derive(Eq, PartialEq)]
+pub enum DeviceCapRequest {
+    HorzSize = 4,
+    VertSize = 6,
+    HorzRes = 8,
+    VertRes = 10,
+}
+
+impl From<DeviceCapRequest> for u16 {
+    fn from(r: DeviceCapRequest) -> Self {
+        r as u16
+    }
 }

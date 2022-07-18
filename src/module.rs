@@ -99,11 +99,13 @@ impl KernelModule {
 impl Module for KernelModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            7 | 23 | 24 | 30 => 2,
+            7 | 18 | 19 | 23 | 24 | 30 => 2,
             5 | 61 => 4,
             51 => 6,
             57 | 60 => 10,
+            127 => 14,
             58 => 18,
+            128 => 22,
             _ => 0,
         }
     }
@@ -131,7 +133,7 @@ impl Module for UserModule {
             5 | 66 | 124 | 179 | 180 => 2,
             42 | 57 | 68 => 4,
             39 | 40 | 173 => 6,
-            81 => 8,
+            61 | 81 => 8,
             0xffff | 107 | 108 | 176 => 10,
             87 => 12,
             41 => 30,

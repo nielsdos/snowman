@@ -76,15 +76,15 @@ impl<'a> EmulatorAccessor<'a> {
         &mut self,
         mut src_ptr: u32,
         mut dst_ptr: u32,
-    ) -> Result<u32, EmulatorError> {
-        let mut number_of_bytes_copied = 0;
+    ) -> Result<u16, EmulatorError> {
+        let mut number_of_bytes_copied = 0u16;
         loop {
             let data = self.memory.read_8(src_ptr)?;
             self.memory.write_8(dst_ptr, data)?;
             if data == 0 {
                 break;
             }
-            number_of_bytes_copied += 1;
+            number_of_bytes_copied = number_of_bytes_copied.wrapping_add(1);
             src_ptr += 1;
             dst_ptr += 1;
         }

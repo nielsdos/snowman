@@ -24,9 +24,16 @@ pub struct DeviceContext {
     pub translation: Point,
 }
 
+pub struct Pen {
+    // TODO: style
+    pub width: u16,
+    pub color: Color,
+}
+
 pub enum GdiObject {
     DC(DeviceContext),
     SolidBrush(Color),
+    Pen(Pen),
 }
 
 pub struct ObjectEnvironment<'a> {

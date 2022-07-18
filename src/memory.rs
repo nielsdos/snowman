@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use crate::emulator_error::EmulatorError;
 use crate::util::{u16_from_array, u32_from_array};
 use std::ops::Deref;

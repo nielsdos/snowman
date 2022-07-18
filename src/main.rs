@@ -15,7 +15,7 @@ use crate::util::{
 };
 use crate::window_manager::WindowManager;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::thread;
 
 #[macro_use]
@@ -441,10 +441,8 @@ fn perform_relocations(
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
                     // Relocate kernel system call
-                    println!("TEST {}", import.index_into_module_reference_table);
                     let module =
                         module_reference_table.module(import.index_into_module_reference_table)?;
-                    println!("TEST done");
                     let segment_and_offset = module.base_module().procedure(
                         memory,
                         import.procedure_ordinal_number,

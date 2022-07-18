@@ -268,6 +268,7 @@ impl<'a> EmulatedUser<'a> {
                 "[user] REGISTER CLASS SUCCESS {:?} => {:#?}",
                 cloned_class_name, window_class
             );
+            todo!("this is just a checkup");
             if self
                 .window_classes
                 .insert(cloned_class_name.into(), window_class)
@@ -371,11 +372,15 @@ impl<'a> EmulatedUser<'a> {
 
     #[api_function]
     fn get_system_metrics(&self, metric: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("metric {} requested", metric);
+        // TODO: other metrics
         if metric == 0x16 {
             // 1 if debug version is installed, 0 otherwise
             Ok(ReturnValue::U16(1))
+        } else if metric == 30 || metric == 31 {
+            // TODO: this is just to let the system continue
+            Ok(ReturnValue::U16(16))
         } else {
-            // TODO: the others
             Ok(ReturnValue::U16(0))
         }
     }
