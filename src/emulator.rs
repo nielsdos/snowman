@@ -256,14 +256,22 @@ impl<'a> Emulator<'a> {
         self.write_mod_rm::<8>(mod_rm, data)
     }
 
-    fn or_r16_rm16(&mut self) -> Result<(), EmulatorError> {
-        let mod_rm = self.read_ip_mod_rm::<16>()?;
+    fn or_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm::<N>()?;
         let result =
-            self.read_mod_rm_16(mod_rm)? | self.regs.read_gpr_16(mod_rm.mod_rm_byte.register_destination());
+            self.read_mod_rm::<N>(mod_rm)? | self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
         self.regs
-            .write_gpr_16(mod_rm.mod_rm_byte.register_destination(), result);
-        self.regs.handle_bitwise_result_u16(false, result);
+            .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
+        self.regs.handle_bitwise_result_u_generic::<N>(false, result);
         Ok(())
+    }
+
+    fn or_r16_rm16(&mut self) -> Result<(), EmulatorError> {
+        self.or_r_rm::<16>()
+    }
+
+    fn or_r8_rm8(&mut self) -> Result<(), EmulatorError> {
+        self.or_r_rm::<16>()
     }
 
     fn or_rm16_r16(&mut self) -> Result<(), EmulatorError> {
@@ -665,6 +673,15 @@ impl<'a> Emulator<'a> {
         self.sub_r_rm::<16>()
     }
 
+    fn sub_al_imm8(&mut self) -> Result<(), EmulatorError> {
+        // TODO: generalise with sub_r8_imm8
+        let data = self.read_ip_u8()?;
+        let (result, result_did_carry) = self.regs.read_gpr_lo_8(Registers::REG_AL).overflowing_sub(data);
+        self.regs.write_gpr_lo_8(Registers::REG_AL, result);
+        self.regs.handle_arithmetic_result_u8(result, result_did_carry, true);
+        Ok(())
+    }
+
     fn sub_ax_imm16(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r16_imm16
         let data = self.read_ip_u16()?;
@@ -883,6 +900,7 @@ impl<'a> Emulator<'a> {
             0x06 => self.push_segment_16(Registers::REG_ES),
             0x07 => self.pop_segment_16(Registers::REG_ES),
             0x09 => self.or_rm16_r16(),
+            0x0A => self.or_r8_rm8(),
             0x0B => self.or_r16_rm16(),
             0x0E => self.push_segment_16(Registers::REG_CS),
             0x16 => self.push_segment_16(Registers::REG_SS),
@@ -890,6 +908,7 @@ impl<'a> Emulator<'a> {
             0x1F => self.pop_segment_16(Registers::REG_DS),
             0x26 => self.segment_override_es(),
             0x2A => self.sub_r8_rm8(),
+            0x2C => self.sub_al_imm8(),
             0x2D => self.sub_ax_imm16(),
             0x2B => self.sub_r16_rm16(),
             0x3B => self.cmp_r16_rm16(),
