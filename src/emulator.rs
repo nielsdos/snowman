@@ -508,7 +508,7 @@ impl<'a> Emulator<'a> {
                 let data = self.read_mod_rm_16(mod_rm)?;
                 self.regs.ip = old_ip; // Because src = dest for MOD/RM
                 let result = data.wrapping_add(1);
-                self.regs.handle_arithmetic_result_u16(result, false);
+                self.regs.handle_arithmetic_result_u16(result, false, false);
                 self.write_mod_rm_16(mod_rm, result)
             }
             3 => {
@@ -541,11 +541,11 @@ impl<'a> Emulator<'a> {
         match mod_rm.register_destination() {
             0 => {
                 let data = self.read_ip_i8()?;
-                let result = current_destination_data.wrapping_add(data as u16);
+                let (result, result_did_carry) = current_destination_data.overflowing_add(data as u16);
                 let old_ip = self.regs.ip;
                 self.write_mod_rm_16(mod_rm, result)?;
                 self.regs.ip = old_ip;
-                self.regs.handle_arithmetic_result_u16(result, true);
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             1 => {
                 let data = self.read_ip_u8()?;
@@ -557,16 +557,16 @@ impl<'a> Emulator<'a> {
             }
             5 => {
                 let data = self.read_ip_i8()?;
-                let result = current_destination_data.wrapping_sub(data as u16);
+                let (result, result_did_carry) = current_destination_data.overflowing_sub(data as u16);
                 let old_ip = self.regs.ip;
                 self.write_mod_rm_16(mod_rm, result)?;
                 self.regs.ip = old_ip;
-                self.regs.handle_arithmetic_result_u16(result, true);
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             7 => {
                 let data = self.read_ip_i8()?;
-                let result = current_destination_data.wrapping_sub(data as u16);
-                self.regs.handle_arithmetic_result_u16(result, true);
+                let (result, result_did_carry) = current_destination_data.overflowing_sub(data as u16);
+                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             _ => {
                 debug!("[cpu] {}", mod_rm.register_destination());
@@ -578,12 +578,12 @@ impl<'a> Emulator<'a> {
 
     fn cmp_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm()?;
-        let result = self
+        let (result, result_did_carry) = self
             .regs
             .read_gpr::<N>(mod_rm.register_destination())
-            .wrapping_sub(self.read_mod_rm::<N>(mod_rm)?);
+            .overflowing_sub(self.read_mod_rm::<N>(mod_rm)?);
         self.regs
-            .handle_arithmetic_result_u_generic::<N>(result, true);
+            .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
     }
 
@@ -597,9 +597,9 @@ impl<'a> Emulator<'a> {
 
     fn cmp_r_imm<const N: usize>(&mut self, reg: u8) -> Result<(), EmulatorError> {
         let immediate = self.read_ip_u_generic::<N>()?;
-        let result = self.regs.read_gpr::<N>(reg).wrapping_sub(immediate);
+        let (result, result_did_carry) = self.regs.read_gpr::<N>(reg).overflowing_sub(immediate);
         self.regs
-            .handle_arithmetic_result_u_generic::<N>(result, true);
+            .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
     }
 
@@ -613,14 +613,14 @@ impl<'a> Emulator<'a> {
 
     fn sub_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm()?;
-        let result = self
+        let (result, result_did_carry) = self
             .regs
             .read_gpr::<N>(mod_rm.register_destination())
-            .wrapping_sub(self.read_mod_rm::<N>(mod_rm)?);
+            .overflowing_sub(self.read_mod_rm::<N>(mod_rm)?);
         self.regs
             .write_gpr::<N>(mod_rm.register_destination(), result);
         self.regs
-            .handle_arithmetic_result_u_generic::<N>(result, true);
+            .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
     }
 
@@ -635,14 +635,14 @@ impl<'a> Emulator<'a> {
     fn add_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm()?;
         let old_ip = self.regs.ip;
-        let result = self
+        let (result, result_did_carry) = self
             .regs
             .read_gpr::<N>(mod_rm.register_destination())
-            .wrapping_add(self.read_mod_rm::<N>(mod_rm)?);
+            .overflowing_add(self.read_mod_rm::<N>(mod_rm)?);
         self.regs.ip = old_ip; // Because src = dest for MOD/RM
         self.write_mod_rm::<N>(mod_rm, result)?;
         self.regs
-            .handle_arithmetic_result_u_generic::<N>(result, true);
+            .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
     }
 

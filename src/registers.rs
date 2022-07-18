@@ -202,13 +202,19 @@ impl Registers {
     pub fn handle_arithmetic_result_u_generic<const N: usize>(
         &mut self,
         result: u16,
-        _affect_cf: bool,
+        result_did_carry: bool,
+        affect_cf: bool,
     ) {
-        // TODO: support CF, OF, AF
+        // TODO: support OF, AF
 
         // Clear the flags we can set here
-        self.flags &= !(Self::FLAG_CF
-            | Self::FLAG_OF
+        if affect_cf {
+            self.flags &= !Self::FLAG_CF;
+            if result_did_carry {
+                self.flags |= Self::FLAG_CF;
+            }
+        }
+        self.flags &= !(Self::FLAG_OF
             | Self::FLAG_SF
             | Self::FLAG_ZF
             | Self::FLAG_PF
@@ -225,12 +231,12 @@ impl Registers {
         }
     }
 
-    pub fn handle_arithmetic_result_u16(&mut self, result: u16, affect_cf: bool) {
-        self.handle_arithmetic_result_u_generic::<16>(result, affect_cf)
+    pub fn handle_arithmetic_result_u16(&mut self, result: u16, result_did_carry: bool, affect_cf: bool) {
+        self.handle_arithmetic_result_u_generic::<16>(result, result_did_carry, affect_cf)
     }
 
-    pub fn handle_arithmetic_result_u8(&mut self, result: u8, affect_cf: bool) {
-        self.handle_arithmetic_result_u_generic::<8>(result as u16, affect_cf)
+    pub fn handle_arithmetic_result_u8(&mut self, result: u8, result_did_carry: bool, affect_cf: bool) {
+        self.handle_arithmetic_result_u_generic::<8>(result as u16, result_did_carry, affect_cf)
     }
 
     pub fn flag_zero(&self) -> bool {
