@@ -1,5 +1,6 @@
 use crate::bitvector_allocator::BitVectorAllocator;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 
 pub trait GenericHandle: Copy + Clone + Eq + Hash + PartialEq + From<u16> {
@@ -44,12 +45,18 @@ impl<K: GenericHandle, V> GenericHandleTable<K, V> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct Handle(u16);
 
 impl Handle {
     pub const fn null() -> Self {
         Self(0)
+    }
+}
+
+impl Debug for Handle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Handle({:x})", self.0)
     }
 }
 
