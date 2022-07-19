@@ -67,12 +67,20 @@ impl Rect {
     }
 
     pub fn shrink(&self, amount: i16) -> Self {
-        // TODO: make sure it stays valid
         Rect {
-            left: self.left.saturating_add(amount),
-            top: self.top.saturating_add(amount),
-            bottom: self.bottom.saturating_sub(amount),
-            right: self.right.saturating_sub(amount),
+            left: self.left.wrapping_add(amount),
+            top: self.top.wrapping_add(amount),
+            bottom: self.bottom.wrapping_sub(amount),
+            right: self.right.wrapping_sub(amount),
+        }
+    }
+
+    pub fn inflate(&self, dx: i16, dy: i16) -> Self {
+        Rect {
+            left: self.left.wrapping_sub(dx),
+            top: self.top.wrapping_sub(dy),
+            bottom: self.bottom.wrapping_add(dy),
+            right: self.right.wrapping_add(dx),
         }
     }
 }
