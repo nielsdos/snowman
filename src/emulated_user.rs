@@ -222,6 +222,8 @@ impl<'a> EmulatedUser<'a> {
         if success {
             // TODO: iirc this should only be done when the window was not visible yet and now became visible
             //       ... And if the message queue is empty? (not sure about this)
+
+            // TODO: also what about child windows?
             self.message_queue.send(WindowMessage {
                 h_wnd,
                 message: MessageType::Paint,
@@ -773,8 +775,10 @@ impl<'a> EmulatedUser<'a> {
             self.with_paint_bitmap_for(h_dc, &objects, &|mut bitmap| {
                 bitmap.fill_rectangle(rect, *color)
             });
+            Ok(ReturnValue::U16(1))
+        } else {
+            Ok(ReturnValue::U16(0))
         }
-        Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
