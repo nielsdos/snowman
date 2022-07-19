@@ -12,7 +12,7 @@ use crate::object_environment::{
 use crate::two_d::{Point, Rect};
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
-use crate::{debug, EmulatorError, Registers, ResourceTable};
+use crate::{debug, EmulatorError, ResourceTable};
 use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -370,7 +370,7 @@ impl<'a> EmulatedUser<'a> {
 
             accessor.memory_mut().copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
 
-            debug_print_null_terminated_string(&mut accessor, buffer.0);
+            debug_print_null_terminated_string(&accessor, buffer.0);
             // String lengths from the resource table will fit in 16 bits, because their length
             // was originally 8 bits.
             Ok(ReturnValue::U16(amount_of_bytes_to_copy as u16))
@@ -416,7 +416,7 @@ impl<'a> EmulatedUser<'a> {
         } else if metric == 30 || metric == 31 {
             // TODO: this is just to let the system continue
             Ok(ReturnValue::U16(16))
-        } else if metric == 30 || metric == 31 {
+        } else if metric == 32 || metric == 33 {
             // TODO: this is just to let the system continue
             Ok(ReturnValue::U16(4))
         } else {

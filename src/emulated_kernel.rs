@@ -195,6 +195,22 @@ impl EmulatedKernel {
         Ok(ReturnValue::U16(number_of_bytes_copied))
     }
 
+    #[api_function]
+    fn lstrcat(&self, mut accessor: EmulatorAccessor, str1: Pointer, str2: Pointer) -> Result<ReturnValue, EmulatorError> {
+        // todo: wsprintf precies afgekapt?
+        let str1_length = accessor.strlen(str1.0)?;
+        let str1_end = str1.advanced(str1_length as u32);
+        accessor.copy_string(str2.0, str1_end.0)?;
+        println!("LSTRCAT result: ");
+        debug_print_null_terminated_string(&accessor, str1.0);
+        Ok(ReturnValue::U16(0))
+    }
+
+    #[api_function]
+    fn strlen(&self, accessor: EmulatorAccessor, str: Pointer) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::U16(accessor.strlen(str.0)?))
+    }
+
     pub fn syscall(
         &self,
         nr: u16,
@@ -214,6 +230,8 @@ impl EmulatedKernel {
             60 => self.__api_find_resource(emulator_accessor),
             61 => self.__api_load_resource(emulator_accessor),
             58 => self.__api_get_profile_string(emulator_accessor),
+            89 => self.__api_lstrcat(emulator_accessor),
+            90 => self.__api_strlen(emulator_accessor),
             91 => self.__api_init_task(emulator_accessor),
             127 => self.__api_get_private_profile_int(emulator_accessor),
             128 => self.__api_get_private_profile_string(emulator_accessor),

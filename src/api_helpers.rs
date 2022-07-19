@@ -12,3 +12,9 @@ impl From<u32> for Pointer {
         Pointer(data)
     }
 }
+
+impl Pointer {
+    pub fn advanced(&self, amount: u32) -> Self {
+        Self(self.0 + amount)
+    }
+}

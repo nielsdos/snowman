@@ -73,6 +73,19 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(flat_address)
     }
 
+    pub fn strlen(&self, mut ptr: u32) -> Result<u16, EmulatorError> {
+        let mut length = 0u16;
+        loop {
+            let data = self.memory.read_8(ptr)?;
+            if data == 0 {
+                break;
+            }
+            length = length.wrapping_add(1);
+            ptr += 1;
+        }
+        Ok(length)
+    }
+
     pub fn copy_string(
         &mut self,
         mut src_ptr: u32,
