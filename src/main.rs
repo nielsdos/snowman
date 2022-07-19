@@ -625,7 +625,7 @@ fn process_file_ne(
         module_reference_count,
     )?;
     let entry_table = process_entry_table(executable, offset_to_entry_table, entry_table_bytes)?;
-    let resource_table = if offset_to_resident_name_table == offset_to_resident_name_table {
+    let resource_table = if offset_to_resource_table == offset_to_resident_name_table {
         ResourceTable::new()
     } else {
         process_resource_table(executable, offset_to_resource_table)?
