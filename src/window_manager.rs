@@ -60,7 +60,7 @@ impl WindowManager {
     ) {
         // TODO: set sane limits for arguments?
         let number_or_default = |number: i16| {
-            if number == -1 {
+            if number == -32768 {
                 200
             } else {
                 number
