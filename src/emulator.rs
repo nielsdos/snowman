@@ -492,15 +492,6 @@ impl<'a> Emulator<'a> {
 
     fn int(&mut self) -> Result<(), EmulatorError> {
         let nr = self.read_ip_u8()?;
-        debug!(
-            "[cpu] interrupt {:x}{}",
-            nr,
-            if nr >= LOWEST_SYSCALL_INT_VECTOR {
-                " (thunk into emulated module)"
-            } else {
-                ""
-            }
-        );
         if nr == 0x21 {
             let ah = self.regs.read_gpr_hi_8(Registers::REG_AH);
             if ah == 0x4C {
@@ -1089,7 +1080,7 @@ impl<'a> Emulator<'a> {
         }
     }
 
-    pub fn step(&mut self) {
+    fn log(&self) {
         debug!(
             "[cpu] Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}, DS={:x}",
             self.regs.read_segment(Registers::REG_CS),
@@ -1103,7 +1094,13 @@ impl<'a> Emulator<'a> {
             self.regs.flags(),
             self.regs.read_segment(Registers::REG_DS),
         );
-        self.execute_opcode().expect("todo");
+    }
+
+    pub fn step(&mut self) {
+        if let Err(error) = self.execute_opcode() {
+            self.log();
+            panic!("TODO: error handling for {:?}", error);
+        }
     }
 
     pub fn run(&mut self) {
