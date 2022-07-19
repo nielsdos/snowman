@@ -42,18 +42,28 @@ impl<'a> EmulatedGdi<'a> {
     #[api_function]
     fn get_device_caps(&self, _hdc: Handle, index: u16) -> Result<ReturnValue, EmulatorError> {
         println!("Get caps: {}", index);
+        /*
+          For a 640x480 vbox screen:
+          4 -> 00D0 = 208
+          6 -> 009C = 156
+          8 -> 0280 = 640
+          A -> 01E0 = 480
+         */
+        let convert_to_unit = |number: u32| {
+            ((number * 1000 + 3077 / 2) / 3077) as u16
+        };
         if index == DeviceCapRequest::HorzRes.into() {
-            // TODO: screen width (in mm ???)
-            Ok(ReturnValue::U16(800 * 28))
-        } else if index == DeviceCapRequest::HorzSize.into() {
             // TODO: screen width in pixels
             Ok(ReturnValue::U16(800))
+        } else if index == DeviceCapRequest::HorzSize.into() {
+            // TODO: screen width in some unit
+            Ok(ReturnValue::U16(convert_to_unit(800)))
         } else if index == DeviceCapRequest::VertRes.into() {
-            // TODO: screen height (in mm ???)
-            Ok(ReturnValue::U16(600 * 28))
-        } else if index == DeviceCapRequest::VertSize.into() {
             // TODO: screen height in pixels
             Ok(ReturnValue::U16(600))
+        } else if index == DeviceCapRequest::VertSize.into() {
+            // TODO: screen height in some unit
+            Ok(ReturnValue::U16(convert_to_unit(600)))
         } else {
             // TODO
             Ok(ReturnValue::U16(0))
