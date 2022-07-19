@@ -267,6 +267,18 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
+    fn invalidate_rect(
+        &self,
+        accessor: EmulatorAccessor,
+        _h_wnd: Handle,
+        _rect: Pointer,
+        _erase: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(0))
+    }
+
+    #[api_function]
     fn register_class(
         &mut self,
         accessor: EmulatorAccessor,
@@ -526,7 +538,7 @@ impl<'a> EmulatedUser<'a> {
             // Paint button
             if let Some(paint) = self.begin_paint(h_wnd) {
                 let objects = self.read_objects();
-                let containing_rect = self.get_client_rect(h_wnd, &objects);
+                let containing_rect = self.get_client_rect(h_wnd, &objects).unwrap_or(Rect::zero());
                 self.with_paint_bitmap_for(paint.hdc, &objects, &|mut bitmap| {
                     // Black rounded frame
                     bitmap.draw_horizontal_line(
@@ -619,7 +631,7 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(0))
     }
 
-    fn get_client_rect(&self, h_wnd: Handle, objects: &RwLockReadGuard<ObjectEnvironment>) -> Rect {
+    fn get_client_rect(&self, h_wnd: Handle, objects: &RwLockReadGuard<ObjectEnvironment>) -> Option<Rect> {
         objects
             .read_window_manager()
             .client_rect_of(WindowIdentifier {
@@ -812,6 +824,20 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
+    fn internal_get_client_rect(&self, mut accessor: EmulatorAccessor, h_wnd: Handle, rect_ptr: Pointer) -> Result<ReturnValue, EmulatorError> {
+        let rect = {
+            let objects = self.read_objects();
+            self.get_client_rect(h_wnd, &objects)
+        };
+        if let Some(rect) = rect {
+            accessor.write_rect(rect_ptr.0, &rect)?;
+            Ok(ReturnValue::U16(1))
+        } else {
+            Ok(ReturnValue::U16(0))
+        }
+    }
+
+    #[api_function]
     fn set_window_text(
         &self,
         _h_wnd: Handle,
@@ -885,6 +911,15 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(1))
     }
 
+    #[api_function]
+    fn set_cursor(
+        &self,
+        _h_cursor: Handle
+    ) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(0))
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
@@ -896,6 +931,7 @@ impl<'a> EmulatedUser<'a> {
             10 => self.__api_set_timer(emulator_accessor),
             12 => self.__api_kill_timer(emulator_accessor),
             32 => self.__api_get_window_rect(emulator_accessor),
+            33 => self.__api_internal_get_client_rect(emulator_accessor),
             37 => self.__api_set_window_text(emulator_accessor),
             39 => self.__api_internal_begin_paint(emulator_accessor),
             40 => self.__api_internal_end_paint(emulator_accessor),
@@ -904,6 +940,7 @@ impl<'a> EmulatedUser<'a> {
             57 => self.__api_register_class(emulator_accessor),
             66 => self.__api_internal_get_dc(emulator_accessor),
             68 => self.__api_internal_release_dc(emulator_accessor),
+            69 => self.__api_set_cursor(emulator_accessor),
             81 => self.__api_fill_rect(emulator_accessor),
             87 => self.__api_dialog_box(emulator_accessor),
             107 => self.__api_def_window_proc(emulator_accessor),
@@ -911,6 +948,7 @@ impl<'a> EmulatedUser<'a> {
             113 => self.__api_translate_message(emulator_accessor),
             114 => self.__api_dispatch_message(emulator_accessor),
             124 => self.__api_update_window(emulator_accessor),
+            125 => self.__api_invalidate_rect(emulator_accessor),
             154 => self.__api_check_menu_item(emulator_accessor),
             155 => self.__api_enable_menu_item(emulator_accessor),
             156 => self.__api_get_system_menu(emulator_accessor),
