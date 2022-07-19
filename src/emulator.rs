@@ -17,6 +17,7 @@ use crate::{debug, EmulatedUser};
 
 pub struct Emulator<'a> {
     regs: Registers,
+    segment_override: u8,
     memory: Memory,
     emulated_kernel: EmulatedKernel,
     emulated_user: EmulatedUser<'a>,
@@ -35,6 +36,7 @@ impl<'a> Emulator<'a> {
     ) -> Self {
         Self {
             regs,
+            segment_override: Registers::REG_DS,
             memory,
             emulated_kernel,
             emulated_user,
@@ -119,18 +121,31 @@ impl<'a> Emulator<'a> {
         }
     }
 
-    fn write_memory_ds<const N: usize>(
+    fn write_memory_to_given_segment<const N: usize>(
+        &mut self,
+        offset: u16,
+        data: u16,
+        segment: u8,
+    ) -> Result<(), EmulatorError> {
+        let address = self.regs.flat_address(segment, offset);
+        self.memory.write::<N>(address, data)
+    }
+
+    fn write_memory_to_segment<const N: usize>(
         &mut self,
         offset: u16,
         data: u16,
     ) -> Result<(), EmulatorError> {
-        let address = self.regs.flat_address(Registers::REG_DS, offset);
-        self.memory.write::<N>(address, data)
+        self.write_memory_to_given_segment::<N>(offset, data, self.segment_override)
     }
 
-    fn read_memory_ds<const N: usize>(&mut self, offset: u16) -> Result<u16, EmulatorError> {
-        let address = self.regs.flat_address(Registers::REG_DS, offset);
+    fn read_memory_from_given_segment<const N: usize>(&mut self, offset: u16, segment: u8) -> Result<u16, EmulatorError> {
+        let address = self.regs.flat_address(segment, offset);
         self.memory.read::<N>(address)
+    }
+
+    fn read_memory_from_segment<const N: usize>(&mut self, offset: u16) -> Result<u16, EmulatorError> {
+        self.read_memory_from_given_segment::<N>(offset, self.segment_override)
     }
 
     pub fn call_far_with_32b_displacement(&mut self) -> Result<(), EmulatorError> {
@@ -216,7 +231,7 @@ impl<'a> Emulator<'a> {
     fn read_mod_rm<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
         match mod_rm.mod_rm_byte.addressing_mode() {
             0 | 1 | 2 => {
-                self.read_memory_ds::<N>(mod_rm.computed)
+                self.read_memory_from_segment::<N>(mod_rm.computed)
             }
             3 => Ok(self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.rm())),
             _ => unreachable!(),
@@ -238,7 +253,7 @@ impl<'a> Emulator<'a> {
     ) -> Result<(), EmulatorError> {
         match mod_rm.mod_rm_byte.addressing_mode() {
             0 | 1 | 2 => {
-                self.write_memory_ds::<N>(mod_rm.computed, data)
+                self.write_memory_to_segment::<N>(mod_rm.computed, data)
             }
             3 => {
                 self.regs.write_gpr::<N>(mod_rm.mod_rm_byte.rm(), data);
@@ -565,8 +580,8 @@ impl<'a> Emulator<'a> {
                 if mod_rm.mod_rm_byte.addressing_mode() == 3 {
                     Err(EmulatorError::InvalidOpcode)
                 } else {
-                    let segment = self.read_memory_ds::<16>(mod_rm.computed.wrapping_add(2))?;
-                    let offset_within_segment = self.read_memory_ds::<16>(mod_rm.computed)?;
+                    let segment = self.read_memory_from_segment::<16>(mod_rm.computed.wrapping_add(2))?;
+                    let offset_within_segment = self.read_memory_from_segment::<16>(mod_rm.computed)?;
                     self.push_cs()?;
                     self.push_ip()?;
                     self.regs.write_segment(Registers::REG_CS, segment);
@@ -796,19 +811,19 @@ impl<'a> Emulator<'a> {
 
     fn mov_moffs16_ax(&mut self) -> Result<(), EmulatorError> {
         let offset = self.read_ip_u16()?;
-        self.write_memory_ds::<16>(offset, self.regs.read_gpr_16(Registers::REG_AX))
+        self.write_memory_to_segment::<16>(offset, self.regs.read_gpr_16(Registers::REG_AX))
     }
 
     fn mov_ax_moffs16(&mut self) -> Result<(), EmulatorError> {
         let offset = self.read_ip_u16()?;
-        let data = self.read_memory_ds::<16>(offset)?;
+        let data = self.read_memory_from_segment::<16>(offset)?;
         self.regs.write_gpr_16(Registers::REG_AX, data);
         Ok(())
     }
 
     fn mov_moffs8_al(&mut self) -> Result<(), EmulatorError> {
         let offset = self.read_ip_u16()?;
-        self.write_memory_ds::<8>(offset, self.regs.read_gpr_lo_8(Registers::REG_AL) as u16)
+        self.write_memory_to_segment::<8>(offset, self.regs.read_gpr_lo_8(Registers::REG_AL) as u16)
     }
 
     fn cwd(&mut self) -> Result<(), EmulatorError> {
@@ -857,10 +872,12 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
-    fn segment_override_es(&mut self) -> Result<(), EmulatorError> {
-        // TODO: set override of ES
-        self.execute_opcode()
-        // TODO: undo override of ES
+    fn segment_override(&mut self, segment_override: u8) -> Result<(), EmulatorError> {
+        let old_override = self.segment_override;
+        self.segment_override = segment_override;
+        self.execute_opcode()?;
+        self.segment_override = old_override;
+        Ok(())
     }
 
     fn les(&mut self) -> Result<(), EmulatorError> {
@@ -868,8 +885,8 @@ impl<'a> Emulator<'a> {
         if mod_rm.mod_rm_byte.addressing_mode() == 3 {
             Err(EmulatorError::InvalidOpcode)
         } else {
-            let segment = self.read_memory_ds::<16>(mod_rm.computed.wrapping_add(2))?;
-            let offset_within_segment = self.read_memory_ds::<16>(mod_rm.computed)?;
+            let segment = self.read_memory_from_segment::<16>(mod_rm.computed.wrapping_add(2))?;
+            let offset_within_segment = self.read_memory_from_segment::<16>(mod_rm.computed)?;
             self.regs.write_gpr_16(mod_rm.mod_rm_byte.register_destination(), offset_within_segment);
             self.regs.write_segment(Registers::REG_ES, segment);
             Ok(())
@@ -906,7 +923,8 @@ impl<'a> Emulator<'a> {
             0x16 => self.push_segment_16(Registers::REG_SS),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x1F => self.pop_segment_16(Registers::REG_DS),
-            0x26 => self.segment_override_es(),
+            0x26 => self.segment_override(Registers::REG_ES),
+            0x2E => self.segment_override(Registers::REG_CS),
             0x2A => self.sub_r8_rm8(),
             0x2C => self.sub_al_imm8(),
             0x2D => self.sub_ax_imm16(),
