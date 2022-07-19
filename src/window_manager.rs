@@ -1,9 +1,9 @@
 use crate::bitmap::{Bitmap, BitmapView};
 use crate::handle_table::Handle;
-use crate::screen::ScreenCanvas;
-use std::collections::HashMap;
 use crate::object_environment::DeviceContext;
+use crate::screen::ScreenCanvas;
 use crate::two_d::{Point, Rect};
+use std::collections::HashMap;
 
 struct Window {
     position: Point,
@@ -107,13 +107,14 @@ impl WindowManager {
     }
 
     pub fn paint_bitmap_for(&mut self, identifier: WindowIdentifier) -> Option<&mut Bitmap> {
-        self.windows.get_mut(&identifier).and_then(|window| window.front_bitmap.as_mut())
+        self.windows
+            .get_mut(&identifier)
+            .and_then(|window| window.front_bitmap.as_mut())
     }
 
     pub fn paint_bitmap_for_dc(&mut self, dc: &DeviceContext) -> Option<BitmapView> {
-        self.paint_bitmap_for(dc.bitmap_window_identifier).map(|bitmap| {
-            BitmapView::new(bitmap, dc.translation)
-        })
+        self.paint_bitmap_for(dc.bitmap_window_identifier)
+            .map(|bitmap| BitmapView::new(bitmap, dc.translation))
     }
 
     pub fn position_of(&self, identifier: WindowIdentifier) -> Option<Point> {
@@ -121,13 +122,14 @@ impl WindowManager {
     }
 
     pub fn client_rect_of(&self, identifier: WindowIdentifier) -> Rect {
-        self.windows.get(&identifier).map(|window| {
-            Rect {
+        self.windows
+            .get(&identifier)
+            .map(|window| Rect {
                 top: 0,
                 left: 0,
                 right: window.width,
-                bottom: window.height
-            }
-        }).unwrap_or(Rect::zero())
+                bottom: window.height,
+            })
+            .unwrap_or_else(Rect::zero)
     }
 }

@@ -2,10 +2,10 @@ use crate::bitmap::Color;
 use crate::handle_table::{Handle, HandleTable};
 use crate::memory::SegmentAndOffset;
 use crate::message_queue::MessageQueue;
+use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
-use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use crate::two_d::Point;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,

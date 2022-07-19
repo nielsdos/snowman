@@ -449,7 +449,6 @@ fn perform_relocations(
                         module.argument_bytes_of_procedure(import.procedure_ordinal_number),
                     )?;
 
-
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
                         if relocation.source_type == 3 {
@@ -623,7 +622,8 @@ fn process_file_ne(
     .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
     debug!("Perform relocations done");
 
-    let button_wnd_proc = module_reference_table.user_module_index
+    let button_wnd_proc = module_reference_table
+        .user_module_index
         .ok_or(ExecutableFormatError::Memory)
         .and_then(|user_module_index| {
             module_reference_table.modules[user_module_index]

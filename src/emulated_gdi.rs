@@ -1,11 +1,11 @@
 use crate::api_helpers::{Pointer, ReturnValue};
+use crate::constants::DeviceCapRequest;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::{GdiObject, Pen};
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
-use crate::constants::DeviceCapRequest;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
@@ -87,10 +87,7 @@ impl<'a> EmulatedGdi<'a> {
         let handle = self
             .write_objects()
             .gdi
-            .register(GdiObject::Pen(Pen {
-                width,
-                color,
-            }))
+            .register(GdiObject::Pen(Pen { width, color }))
             .unwrap_or(Handle::null());
         Ok(ReturnValue::U16(handle.as_u16()))
     }
@@ -108,8 +105,11 @@ impl<'a> EmulatedGdi<'a> {
     fn muldiv(&self, a: u16, b: u16, c: u16) -> Result<ReturnValue, EmulatorError> {
         let mul = (a as u32) * (b as u32);
         // Add half the denominator for rounding
-        let mul_with_half_denominator = mul.wrapping_add(((c as u32) >> 1));
-        let result = mul_with_half_denominator.checked_div(c as u32).and_then(|result| u16::try_from(result).ok()).unwrap_or(0xffff);
+        let mul_with_half_denominator = mul.wrapping_add((c as u32) >> 1);
+        let result = mul_with_half_denominator
+            .checked_div(c as u32)
+            .and_then(|result| u16::try_from(result).ok())
+            .unwrap_or(0xffff);
         Ok(ReturnValue::U16(result))
     }
 

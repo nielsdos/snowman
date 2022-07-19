@@ -188,7 +188,11 @@ impl Registers {
         }
     }
 
-    pub fn handle_bitwise_result_u_generic<const N: usize>(&mut self, result_did_carry: bool, result: u16) {
+    pub fn handle_bitwise_result_u_generic<const N: usize>(
+        &mut self,
+        result_did_carry: bool,
+        result: u16,
+    ) {
         // Clear OF & CF, and the flags we can set here
         self.flags &=
             !(Self::FLAG_CF | Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF);
@@ -221,19 +225,26 @@ impl Registers {
                 self.flags |= Self::FLAG_CF;
             }
         }
-        self.flags &= !(Self::FLAG_OF
-            | Self::FLAG_SF
-            | Self::FLAG_ZF
-            | Self::FLAG_PF
-            | Self::FLAG_AF);
+        self.flags &=
+            !(Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF | Self::FLAG_AF);
         self.set_zf_pf_sf::<N>(result);
     }
 
-    pub fn handle_arithmetic_result_u16(&mut self, result: u16, result_did_carry: bool, affect_cf: bool) {
+    pub fn handle_arithmetic_result_u16(
+        &mut self,
+        result: u16,
+        result_did_carry: bool,
+        affect_cf: bool,
+    ) {
         self.handle_arithmetic_result_u_generic::<16>(result, result_did_carry, affect_cf)
     }
 
-    pub fn handle_arithmetic_result_u8(&mut self, result: u8, result_did_carry: bool, affect_cf: bool) {
+    pub fn handle_arithmetic_result_u8(
+        &mut self,
+        result: u8,
+        result_did_carry: bool,
+        affect_cf: bool,
+    ) {
         self.handle_arithmetic_result_u_generic::<8>(result as u16, result_did_carry, affect_cf)
     }
 

@@ -1,5 +1,5 @@
-use std::ops::{Deref, DerefMut};
 use crate::two_d::{Point, Rect};
+use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -34,7 +34,10 @@ impl<'a> BitmapView<'a> {
     pub fn new(bitmap: &'a mut Bitmap, translation: Point) -> Self {
         println!("Translated bitmap {:?}", translation);
         bitmap.translation += translation;
-        Self { bitmap, translation }
+        Self {
+            bitmap,
+            translation,
+        }
     }
 }
 

@@ -1,6 +1,6 @@
-use std::fmt::{Debug, Formatter};
 use crate::emulator_error::EmulatorError;
 use crate::util::{u16_from_array, u32_from_array};
+use std::fmt::Debug;
 use std::ops::Deref;
 
 const MEMORY_SIZE: usize = 1024 * 1024;

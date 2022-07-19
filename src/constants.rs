@@ -1,5 +1,5 @@
 use bitflags::bitflags;
-use num_derive::{FromPrimitive, ToPrimitive};
+use num_derive::FromPrimitive;
 
 pub const KERNEL_INT_VECTOR: u8 = 0xff;
 pub const USER_INT_VECTOR: u8 = 0xfe;

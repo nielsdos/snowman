@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-use chrono::{Datelike, Timelike, Weekday};
 use crate::api_helpers::ReturnValue;
 use crate::constants::{
     GDI_INT_VECTOR, KERNEL_INT_VECTOR, KEYBOARD_INT_VECTOR, LOWEST_SYSCALL_INT_VECTOR,
@@ -14,6 +12,8 @@ use crate::memory::Memory;
 use crate::mod_rm::{ModRM, ModRMByte};
 use crate::registers::Registers;
 use crate::{debug, EmulatedUser};
+use chrono::{Datelike, Timelike, Weekday};
+use std::time::SystemTime;
 
 pub struct Emulator<'a> {
     regs: Registers,
@@ -139,12 +139,19 @@ impl<'a> Emulator<'a> {
         self.write_memory_to_given_segment::<N>(offset, data, self.segment_override)
     }
 
-    fn read_memory_from_given_segment<const N: usize>(&mut self, offset: u16, segment: u8) -> Result<u16, EmulatorError> {
+    fn read_memory_from_given_segment<const N: usize>(
+        &mut self,
+        offset: u16,
+        segment: u8,
+    ) -> Result<u16, EmulatorError> {
         let address = self.regs.flat_address(segment, offset);
         self.memory.read::<N>(address)
     }
 
-    fn read_memory_from_segment<const N: usize>(&mut self, offset: u16) -> Result<u16, EmulatorError> {
+    fn read_memory_from_segment<const N: usize>(
+        &mut self,
+        offset: u16,
+    ) -> Result<u16, EmulatorError> {
         self.read_memory_from_given_segment::<N>(offset, self.segment_override)
     }
 
@@ -230,9 +237,7 @@ impl<'a> Emulator<'a> {
 
     fn read_mod_rm<const N: usize>(&mut self, mod_rm: ModRM) -> Result<u16, EmulatorError> {
         match mod_rm.mod_rm_byte.addressing_mode() {
-            0 | 1 | 2 => {
-                self.read_memory_from_segment::<N>(mod_rm.computed)
-            }
+            0 | 1 | 2 => self.read_memory_from_segment::<N>(mod_rm.computed),
             3 => Ok(self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.rm())),
             _ => unreachable!(),
         }
@@ -252,9 +257,7 @@ impl<'a> Emulator<'a> {
         data: u16,
     ) -> Result<(), EmulatorError> {
         match mod_rm.mod_rm_byte.addressing_mode() {
-            0 | 1 | 2 => {
-                self.write_memory_to_segment::<N>(mod_rm.computed, data)
-            }
+            0 | 1 | 2 => self.write_memory_to_segment::<N>(mod_rm.computed, data),
             3 => {
                 self.regs.write_gpr::<N>(mod_rm.mod_rm_byte.rm(), data);
                 Ok(())
@@ -273,11 +276,14 @@ impl<'a> Emulator<'a> {
 
     fn or_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result =
-            self.read_mod_rm::<N>(mod_rm)? | self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
+        let result = self.read_mod_rm::<N>(mod_rm)?
+            | self
+                .regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
-        self.regs.handle_bitwise_result_u_generic::<N>(false, result);
+        self.regs
+            .handle_bitwise_result_u_generic::<N>(false, result);
         Ok(())
     }
 
@@ -291,8 +297,10 @@ impl<'a> Emulator<'a> {
 
     fn or_rm16_r16(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
-        let result =
-            self.read_mod_rm_16(mod_rm)? | self.regs.read_gpr_16(mod_rm.mod_rm_byte.register_destination());
+        let result = self.read_mod_rm_16(mod_rm)?
+            | self
+                .regs
+                .read_gpr_16(mod_rm.mod_rm_byte.register_destination());
         self.write_mod_rm_16(mod_rm, result)?;
         self.regs.handle_bitwise_result_u16(false, result);
         Ok(())
@@ -301,22 +309,28 @@ impl<'a> Emulator<'a> {
     fn xor_r_rm_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with the above OR function
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result =
-            self.read_mod_rm::<N>(mod_rm)? ^ self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
+        let result = self.read_mod_rm::<N>(mod_rm)?
+            ^ self
+                .regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
-        self.regs.handle_bitwise_result_u_generic::<N>(false, result);
+        self.regs
+            .handle_bitwise_result_u_generic::<N>(false, result);
         Ok(())
     }
 
     fn xor_rm_r_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with the above OR function
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result =
-            self.read_mod_rm::<N>(mod_rm)? ^ self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
+        let result = self.read_mod_rm::<N>(mod_rm)?
+            ^ self
+                .regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
-        self.regs.handle_bitwise_result_u_generic::<N>(false, result);
+        self.regs
+            .handle_bitwise_result_u_generic::<N>(false, result);
         Ok(())
     }
 
@@ -331,19 +345,26 @@ impl<'a> Emulator<'a> {
     fn mov_r8_rm8(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<8>()?;
         let result = self.read_mod_rm_8(mod_rm)?;
-        self.regs.write_gpr_8(mod_rm.mod_rm_byte.register_destination(), result);
+        self.regs
+            .write_gpr_8(mod_rm.mod_rm_byte.register_destination(), result);
         Ok(())
     }
 
     fn mov_rm8_r8(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<8>()?;
-        let result = self.regs.read_gpr_8(mod_rm.mod_rm_byte.register_destination());
+        let result = self
+            .regs
+            .read_gpr_8(mod_rm.mod_rm_byte.register_destination());
         self.write_mod_rm_8(mod_rm, result as u16)
     }
 
     fn mov_rm16_r16(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
-        self.write_mod_rm_16(mod_rm, self.regs.read_gpr_16(mod_rm.mod_rm_byte.register_destination()))
+        self.write_mod_rm_16(
+            mod_rm,
+            self.regs
+                .read_gpr_16(mod_rm.mod_rm_byte.register_destination()),
+        )
     }
 
     fn mov_rm_imm_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
@@ -366,11 +387,13 @@ impl<'a> Emulator<'a> {
             0 => {
                 let data = self.read_mod_rm_16(mod_rm)?;
                 let imm = self.read_ip_u_generic::<N>()?;
-                self.regs.handle_bitwise_result_u_generic::<N>(false, data & imm);
+                self.regs
+                    .handle_bitwise_result_u_generic::<N>(false, data & imm);
             }
             7 => {
                 if N == 16 {
-                    let lhs = ((self.regs.read_gpr_16(Registers::REG_DX) as i16 as i32) << 16) | (self.regs.read_gpr_16(Registers::REG_AX) as i16 as i32);
+                    let lhs = ((self.regs.read_gpr_16(Registers::REG_DX) as i16 as i32) << 16)
+                        | (self.regs.read_gpr_16(Registers::REG_AX) as i16 as i32);
                     let rhs = self.read_mod_rm_16(mod_rm)? as i16 as i32;
                     if rhs == 0 {
                         return Err(EmulatorError::DivideError);
@@ -380,8 +403,10 @@ impl<'a> Emulator<'a> {
                     if quotient > 0x7fff || quotient < -0x8000 {
                         return Err(EmulatorError::DivideError);
                     }
-                    self.regs.write_gpr_16(Registers::REG_AX, quotient as u32 as u16);
-                    self.regs.write_gpr_16(Registers::REG_DX, remainder as u32 as u16);
+                    self.regs
+                        .write_gpr_16(Registers::REG_AX, quotient as u32 as u16);
+                    self.regs
+                        .write_gpr_16(Registers::REG_DX, remainder as u32 as u16);
                 } else {
                     todo!()
                 }
@@ -493,26 +518,38 @@ impl<'a> Emulator<'a> {
             } else if ah == 0x2A {
                 // Get system date
                 let time = chrono::offset::Local::now();
-                self.regs.write_gpr_16(Registers::REG_CX, time.year() as u16);
-                self.regs.write_gpr_hi_8(Registers::REG_DH, time.month() as u8);
-                self.regs.write_gpr_lo_8(Registers::REG_DL, time.day() as u8);
-                self.regs.write_gpr_lo_8(Registers::REG_AL, match time.weekday() {
-                    Weekday::Mon => 1,
-                    Weekday::Tue => 2,
-                    Weekday::Wed => 3,
-                    Weekday::Thu => 4,
-                    Weekday::Fri => 5,
-                    Weekday::Sat => 6,
-                    Weekday::Sun => 0,
-                });
+                self.regs
+                    .write_gpr_16(Registers::REG_CX, time.year() as u16);
+                self.regs
+                    .write_gpr_hi_8(Registers::REG_DH, time.month() as u8);
+                self.regs
+                    .write_gpr_lo_8(Registers::REG_DL, time.day() as u8);
+                self.regs.write_gpr_lo_8(
+                    Registers::REG_AL,
+                    match time.weekday() {
+                        Weekday::Mon => 1,
+                        Weekday::Tue => 2,
+                        Weekday::Wed => 3,
+                        Weekday::Thu => 4,
+                        Weekday::Fri => 5,
+                        Weekday::Sat => 6,
+                        Weekday::Sun => 0,
+                    },
+                );
                 return Ok(());
             } else if ah == 0x2C {
                 // Get system time
                 let time = chrono::offset::Local::now();
-                self.regs.write_gpr_hi_8(Registers::REG_CH, time.hour() as u8);
-                self.regs.write_gpr_lo_8(Registers::REG_CL, time.minute() as u8);
-                self.regs.write_gpr_hi_8(Registers::REG_DH, time.second() as u8);
-                self.regs.write_gpr_lo_8(Registers::REG_DL, (time.timestamp_subsec_millis() / 10) as u8);
+                self.regs
+                    .write_gpr_hi_8(Registers::REG_CH, time.hour() as u8);
+                self.regs
+                    .write_gpr_lo_8(Registers::REG_CL, time.minute() as u8);
+                self.regs
+                    .write_gpr_hi_8(Registers::REG_DH, time.second() as u8);
+                self.regs.write_gpr_lo_8(
+                    Registers::REG_DL,
+                    (time.timestamp_subsec_millis() / 10) as u8,
+                );
                 return Ok(());
             }
             Err(EmulatorError::Exit)
@@ -556,17 +593,15 @@ impl<'a> Emulator<'a> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
         self.write_mod_rm_16(
             mod_rm,
-            self.regs.read_segment(mod_rm.mod_rm_byte.register_destination()),
+            self.regs
+                .read_segment(mod_rm.mod_rm_byte.register_destination()),
         )?;
         Ok(())
     }
 
     fn op_0xff(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
-        println!(
-            "{:?}",
-            mod_rm,
-        );
+        println!("{:?}", mod_rm,);
         match mod_rm.mod_rm_byte.register_destination() {
             0 => {
                 // inc ...
@@ -580,8 +615,10 @@ impl<'a> Emulator<'a> {
                 if mod_rm.mod_rm_byte.addressing_mode() == 3 {
                     Err(EmulatorError::InvalidOpcode)
                 } else {
-                    let segment = self.read_memory_from_segment::<16>(mod_rm.computed.wrapping_add(2))?;
-                    let offset_within_segment = self.read_memory_from_segment::<16>(mod_rm.computed)?;
+                    let segment =
+                        self.read_memory_from_segment::<16>(mod_rm.computed.wrapping_add(2))?;
+                    let offset_within_segment =
+                        self.read_memory_from_segment::<16>(mod_rm.computed)?;
                     self.push_cs()?;
                     self.push_ip()?;
                     self.regs.write_segment(Registers::REG_CS, segment);
@@ -627,8 +664,10 @@ impl<'a> Emulator<'a> {
 
     fn cmp_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, result_did_carry) = self.read_mod_rm::<N>(mod_rm)?
-            .overflowing_sub(self.regs.read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()));
+        let (result, result_did_carry) = self.read_mod_rm::<N>(mod_rm)?.overflowing_sub(
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+        );
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
@@ -691,18 +730,26 @@ impl<'a> Emulator<'a> {
     fn sub_al_imm8(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r8_imm8
         let data = self.read_ip_u8()?;
-        let (result, result_did_carry) = self.regs.read_gpr_lo_8(Registers::REG_AL).overflowing_sub(data);
+        let (result, result_did_carry) = self
+            .regs
+            .read_gpr_lo_8(Registers::REG_AL)
+            .overflowing_sub(data);
         self.regs.write_gpr_lo_8(Registers::REG_AL, result);
-        self.regs.handle_arithmetic_result_u8(result, result_did_carry, true);
+        self.regs
+            .handle_arithmetic_result_u8(result, result_did_carry, true);
         Ok(())
     }
 
     fn sub_ax_imm16(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r16_imm16
         let data = self.read_ip_u16()?;
-        let (result, result_did_carry) = self.regs.read_gpr_16(Registers::REG_AX).overflowing_sub(data);
+        let (result, result_did_carry) = self
+            .regs
+            .read_gpr_16(Registers::REG_AX)
+            .overflowing_sub(data);
         self.regs.write_gpr_16(Registers::REG_AX, result);
-        self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+        self.regs
+            .handle_arithmetic_result_u16(result, result_did_carry, true);
         Ok(())
     }
 
@@ -732,7 +779,8 @@ impl<'a> Emulator<'a> {
             .regs
             .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination())
             .overflowing_add(self.read_mod_rm::<N>(mod_rm)?);
-        self.regs.write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
+        self.regs
+            .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, result_did_carry, true);
         Ok(())
@@ -745,21 +793,24 @@ impl<'a> Emulator<'a> {
     fn op_0x81_0x83<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let current_destination_data = self.read_mod_rm_16(mod_rm)?;
-        let mut read_data = |unsigned: bool| if N == 8 {
-            if unsigned {
-                self.read_ip_u8().map(|data| data as u16)
+        let mut read_data = |unsigned: bool| {
+            if N == 8 {
+                if unsigned {
+                    self.read_ip_u8().map(|data| data as u16)
+                } else {
+                    self.read_ip_i8().map(|data| data as u16)
+                }
             } else {
-                self.read_ip_i8().map(|data| data as u16)
+                self.read_ip_u16()
             }
-        } else {
-            self.read_ip_u16()
         };
         match mod_rm.mod_rm_byte.register_destination() {
             0 => {
                 let data = read_data(false)?;
                 let (result, result_did_carry) = current_destination_data.overflowing_add(data);
                 self.write_mod_rm_16(mod_rm, result)?;
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+                self.regs
+                    .handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             1 => {
                 let data = read_data(true)?;
@@ -771,12 +822,14 @@ impl<'a> Emulator<'a> {
                 let data = read_data(false)?;
                 let (result, result_did_carry) = current_destination_data.overflowing_sub(data);
                 self.write_mod_rm_16(mod_rm, result)?;
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+                self.regs
+                    .handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             7 => {
                 let data = read_data(false)?;
                 let (result, result_did_carry) = current_destination_data.overflowing_sub(data);
-                self.regs.handle_arithmetic_result_u16(result, result_did_carry, true);
+                self.regs
+                    .handle_arithmetic_result_u16(result, result_did_carry, true);
             }
             _ => {
                 debug!("[cpu] {}", mod_rm.mod_rm_byte.register_destination());
@@ -805,7 +858,8 @@ impl<'a> Emulator<'a> {
 
     fn lea(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
-        self.regs.write_gpr_16(mod_rm.mod_rm_byte.register_destination(), mod_rm.computed);
+        self.regs
+            .write_gpr_16(mod_rm.mod_rm_byte.register_destination(), mod_rm.computed);
         Ok(())
     }
 
@@ -851,10 +905,12 @@ impl<'a> Emulator<'a> {
             4 => {
                 let operand = self.read_ip_u8()? & 31;
                 if operand != 0 {
-                    let (result, result_did_carry) = current_destination_data.overflowing_shl(operand as u32);
+                    let (result, result_did_carry) =
+                        current_destination_data.overflowing_shl(operand as u32);
                     self.write_mod_rm_16(mod_rm, result)?;
                     // TODO: support OF
-                    self.regs.handle_bitwise_result_u16(result_did_carry, result);
+                    self.regs
+                        .handle_bitwise_result_u16(result_did_carry, result);
                 }
             }
             _ => {
@@ -868,7 +924,8 @@ impl<'a> Emulator<'a> {
     fn mov_segment_rm16(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
         let data = self.read_mod_rm_16(mod_rm)?;
-        self.regs.write_segment(mod_rm.mod_rm_byte.register_destination(), data);
+        self.regs
+            .write_segment(mod_rm.mod_rm_byte.register_destination(), data);
         Ok(())
     }
 
@@ -887,7 +944,10 @@ impl<'a> Emulator<'a> {
         } else {
             let segment = self.read_memory_from_segment::<16>(mod_rm.computed.wrapping_add(2))?;
             let offset_within_segment = self.read_memory_from_segment::<16>(mod_rm.computed)?;
-            self.regs.write_gpr_16(mod_rm.mod_rm_byte.register_destination(), offset_within_segment);
+            self.regs.write_gpr_16(
+                mod_rm.mod_rm_byte.register_destination(),
+                offset_within_segment,
+            );
             self.regs.write_segment(Registers::REG_ES, segment);
             Ok(())
         }
@@ -977,8 +1037,7 @@ impl<'a> Emulator<'a> {
             0x7C => self.jcc(self.regs.flag_sign() ^ self.regs.flag_overflow()),
             0x7E => self
                 .jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
-            0x7F => self
-                .jcc(!self.regs.flag_zero() & !self.regs.flag_sign()),
+            0x7F => self.jcc(!self.regs.flag_zero() & !self.regs.flag_sign()),
             0x80 => self.cmp_rm8_imm8(),
             0x81 => self.op_0x81(),
             0x83 => self.op_0x83(),

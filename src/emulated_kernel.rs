@@ -160,7 +160,14 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn get_private_profile_int(&self, accessor: EmulatorAccessor, app_name: Pointer, key_name: Pointer, default: u16, file_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn get_private_profile_int(
+        &self,
+        accessor: EmulatorAccessor,
+        app_name: Pointer,
+        key_name: Pointer,
+        default: u16,
+        file_name: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         debug_print_null_terminated_string(&accessor, app_name.0);
         debug_print_null_terminated_string(&accessor, key_name.0);
         debug_print_null_terminated_string(&accessor, file_name.0);
@@ -169,7 +176,16 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn get_private_profile_string(&self, mut accessor: EmulatorAccessor, app_name: Pointer, key_name: Pointer, default: Pointer, returned_string: Pointer, size: u16, file_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn get_private_profile_string(
+        &self,
+        mut accessor: EmulatorAccessor,
+        app_name: Pointer,
+        key_name: Pointer,
+        default: Pointer,
+        returned_string: Pointer,
+        size: u16,
+        file_name: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         debug_print_null_terminated_string(&accessor, app_name.0);
         debug_print_null_terminated_string(&accessor, key_name.0);
         debug_print_null_terminated_string(&accessor, file_name.0);

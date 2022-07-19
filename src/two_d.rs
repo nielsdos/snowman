@@ -16,10 +16,7 @@ pub struct Point {
 
 impl Point {
     pub fn origin() -> Self {
-        Self {
-            x: 0,
-            y: 0,
-        }
+        Self { x: 0, y: 0 }
     }
 }
 
@@ -27,7 +24,10 @@ impl Add<Point> for Point {
     type Output = Point;
 
     fn add(self, rhs: Point) -> Self::Output {
-        Point { x: self.x + rhs.x, y: self.y + rhs.y }
+        Point {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
     }
 }
 
@@ -35,7 +35,10 @@ impl Sub<Point> for Point {
     type Output = Point;
 
     fn sub(self, rhs: Point) -> Self::Output {
-        Point { x: self.x - rhs.x, y: self.y - rhs.y }
+        Point {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
     }
 }
 
@@ -59,7 +62,7 @@ impl Rect {
             left: 0,
             top: 0,
             right: 0,
-            bottom: 0
+            bottom: 0,
         }
     }
 

@@ -1,21 +1,22 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::atom_table::AtomTable;
+use crate::bitmap::{BitmapView, Color};
 use crate::byte_string::{ByteString, HeapByteString};
 use crate::constants::{ClassStyles, MessageType, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
-use crate::object_environment::{DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow};
+use crate::object_environment::{
+    DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow,
+};
+use crate::two_d::{Point, Rect};
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
-use std::collections::HashMap;
-use std::process::id;
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use num_traits::FromPrimitive;
+use std::collections::HashMap;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
-use crate::bitmap::{Bitmap, BitmapView, Color};
-use crate::two_d::{Point, Rect};
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -44,7 +45,10 @@ pub struct EmulatedUser<'a> {
 }
 
 impl<'a> EmulatedUser<'a> {
-    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>, button_wnd_proc: SegmentAndOffset) -> Self {
+    pub fn new(
+        objects: &'a RwLock<ObjectEnvironment<'a>>,
+        button_wnd_proc: SegmentAndOffset,
+    ) -> Self {
         let mut window_classes = HashMap::new();
         window_classes.insert(
             ByteString::from_slice(b"BUTTON"),
@@ -69,7 +73,9 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn internal_get_sys_color(&self, index: u16) -> Result<ReturnValue, EmulatorError> {
         let system_color: Option<SystemColors> = FromPrimitive::from_u16(index);
-        let color = system_color.map(|color| self.get_system_color(color)).unwrap_or(Color(0, 0, 0));
+        let color = system_color
+            .map(|color| self.get_system_color(color))
+            .unwrap_or(Color(0, 0, 0));
         Ok(ReturnValue::U32(color.as_u32()))
     }
 
@@ -129,12 +135,11 @@ impl<'a> EmulatedUser<'a> {
             let user_window = UserWindow::new(class.proc, parent_dc, h_wnd_parent);
             let proc = user_window.proc;
             let mut objects = self.write_objects();
-            if let Some(window_handle) = objects
-                .user
-                .register(UserObject::Window(user_window)) {
-
+            if let Some(window_handle) = objects.user.register(UserObject::Window(user_window)) {
                 if h_wnd_parent != Handle::null() {
-                    if let Some(UserObject::Window(parent_window)) = objects.user.get_mut(h_wnd_parent) {
+                    if let Some(UserObject::Window(parent_window)) =
+                        objects.user.get_mut(h_wnd_parent)
+                    {
                         parent_window.children.push(window_handle);
                     } else {
                         objects.user.deregister(window_handle);
@@ -155,7 +160,14 @@ impl<'a> EmulatedUser<'a> {
                 );
 
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
-                self.call_wndproc_sync(&mut accessor, proc, window_handle, MessageType::Create, 0, 0)?;
+                self.call_wndproc_sync(
+                    &mut accessor,
+                    proc,
+                    window_handle,
+                    MessageType::Create,
+                    0,
+                    0,
+                )?;
                 return Ok(ReturnValue::DelayedU16(window_handle.as_u16()));
             }
         }
@@ -181,10 +193,12 @@ impl<'a> EmulatedUser<'a> {
         let success = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
                 // TODO: do something with cmd_show
-                objects.write_window_manager().show_window(WindowIdentifier {
-                    window_handle: h_wnd,
-                    process_id: self.process_id(),
-                });
+                objects
+                    .write_window_manager()
+                    .show_window(WindowIdentifier {
+                        window_handle: h_wnd,
+                        process_id: self.process_id(),
+                    });
                 true
             }
             None => false,
@@ -192,7 +206,12 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(success.into()))
     }
 
-    fn recursive_window_paint(&self, accessor: &mut EmulatorAccessor, objects: &RwLockReadGuard<ObjectEnvironment>, h_wnd: Handle) -> bool {
+    fn recursive_window_paint(
+        &self,
+        accessor: &mut EmulatorAccessor,
+        objects: &RwLockReadGuard<ObjectEnvironment>,
+        h_wnd: Handle,
+    ) -> bool {
         println!("recursive window paint: {:?}", h_wnd);
         match objects.user.get(h_wnd) {
             Some(UserObject::Window(user_window)) => {
@@ -200,14 +219,8 @@ impl<'a> EmulatedUser<'a> {
                     self.recursive_window_paint(accessor, objects, *child);
                 }
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(
-                    accessor,
-                    user_window.proc,
-                    h_wnd,
-                    MessageType::Paint,
-                    0,
-                    0,
-                ).is_ok()
+                self.call_wndproc_sync(accessor, user_window.proc, h_wnd, MessageType::Paint, 0, 0)
+                    .is_ok()
             }
             _ => false,
         }
@@ -435,24 +448,84 @@ impl<'a> EmulatedUser<'a> {
                 let containing_rect = self.get_client_rect(h_wnd, &objects);
                 self.with_paint_bitmap_for(paint.hdc, &objects, &|mut bitmap| {
                     // Black rounded frame
-                    bitmap.draw_horizontal_line(1, 0, containing_rect.right.wrapping_sub(1), self.get_system_color(SystemColors::WindowFrame));
-                    bitmap.draw_horizontal_line(1, containing_rect.bottom.saturating_sub(1), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
-                    bitmap.draw_vertical_line(0, 1, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
-                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(1), 1, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::WindowFrame));
+                    bitmap.draw_horizontal_line(
+                        1,
+                        0,
+                        containing_rect.right.wrapping_sub(1),
+                        self.get_system_color(SystemColors::WindowFrame),
+                    );
+                    bitmap.draw_horizontal_line(
+                        1,
+                        containing_rect.bottom.saturating_sub(1),
+                        containing_rect.right.saturating_sub(1),
+                        self.get_system_color(SystemColors::WindowFrame),
+                    );
+                    bitmap.draw_vertical_line(
+                        0,
+                        1,
+                        containing_rect.bottom.saturating_sub(1),
+                        self.get_system_color(SystemColors::WindowFrame),
+                    );
+                    bitmap.draw_vertical_line(
+                        containing_rect.right.saturating_sub(1),
+                        1,
+                        containing_rect.bottom.saturating_sub(1),
+                        self.get_system_color(SystemColors::WindowFrame),
+                    );
 
                     // Highlight top
-                    bitmap.draw_horizontal_line(1, 1, containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonHighlight));
-                    bitmap.draw_horizontal_line(1, 2, containing_rect.right.saturating_sub(2), self.get_system_color(SystemColors::ButtonHighlight));
+                    bitmap.draw_horizontal_line(
+                        1,
+                        1,
+                        containing_rect.right.saturating_sub(1),
+                        self.get_system_color(SystemColors::ButtonHighlight),
+                    );
+                    bitmap.draw_horizontal_line(
+                        1,
+                        2,
+                        containing_rect.right.saturating_sub(2),
+                        self.get_system_color(SystemColors::ButtonHighlight),
+                    );
                     // Highlight left
-                    bitmap.draw_vertical_line(1, 3, containing_rect.bottom.saturating_sub(1), self.get_system_color(SystemColors::ButtonHighlight));
-                    bitmap.draw_vertical_line(2, 3, containing_rect.bottom.saturating_sub(2), self.get_system_color(SystemColors::ButtonHighlight));
+                    bitmap.draw_vertical_line(
+                        1,
+                        3,
+                        containing_rect.bottom.saturating_sub(1),
+                        self.get_system_color(SystemColors::ButtonHighlight),
+                    );
+                    bitmap.draw_vertical_line(
+                        2,
+                        3,
+                        containing_rect.bottom.saturating_sub(2),
+                        self.get_system_color(SystemColors::ButtonHighlight),
+                    );
 
                     // Shadow right
-                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(2), 1, containing_rect.bottom.saturating_sub(3), self.get_system_color(SystemColors::ButtonShadow));
-                    bitmap.draw_vertical_line(containing_rect.right.saturating_sub(3), 2, containing_rect.bottom.saturating_sub(3), self.get_system_color(SystemColors::ButtonShadow));
+                    bitmap.draw_vertical_line(
+                        containing_rect.right.saturating_sub(2),
+                        1,
+                        containing_rect.bottom.saturating_sub(3),
+                        self.get_system_color(SystemColors::ButtonShadow),
+                    );
+                    bitmap.draw_vertical_line(
+                        containing_rect.right.saturating_sub(3),
+                        2,
+                        containing_rect.bottom.saturating_sub(3),
+                        self.get_system_color(SystemColors::ButtonShadow),
+                    );
                     // Shadow bottom
-                    bitmap.draw_horizontal_line(2, containing_rect.bottom.saturating_sub(3), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonShadow));
-                    bitmap.draw_horizontal_line(1, containing_rect.bottom.saturating_sub(2), containing_rect.right.saturating_sub(1), self.get_system_color(SystemColors::ButtonShadow));
+                    bitmap.draw_horizontal_line(
+                        2,
+                        containing_rect.bottom.saturating_sub(3),
+                        containing_rect.right.saturating_sub(1),
+                        self.get_system_color(SystemColors::ButtonShadow),
+                    );
+                    bitmap.draw_horizontal_line(
+                        1,
+                        containing_rect.bottom.saturating_sub(2),
+                        containing_rect.right.saturating_sub(1),
+                        self.get_system_color(SystemColors::ButtonShadow),
+                    );
 
                     // Face
                     let bg_rect = containing_rect.shrink(3);
@@ -466,10 +539,12 @@ impl<'a> EmulatedUser<'a> {
     }
 
     fn get_client_rect(&self, h_wnd: Handle, objects: &RwLockReadGuard<ObjectEnvironment>) -> Rect {
-        objects.read_window_manager().client_rect_of(WindowIdentifier {
-            process_id: self.process_id(),
-            window_handle: h_wnd,
-        })
+        objects
+            .read_window_manager()
+            .client_rect_of(WindowIdentifier {
+                process_id: self.process_id(),
+                window_handle: h_wnd,
+            })
     }
 
     fn get_dc(&self, h_wnd: Handle) -> Option<Handle> {
@@ -482,13 +557,20 @@ impl<'a> EmulatedUser<'a> {
                 };
                 let (bitmap_window_identifier, translation) = if user_window.parent_dc {
                     // TODO: nested CS_PARENTDC: how to handle them?
-                    let translation = objects.read_window_manager().position_of(window_identifier).unwrap_or(Point::origin());
-                    let parent_window_identifier = window_identifier.other_handle(user_window.parent_handle);
+                    let translation = objects
+                        .read_window_manager()
+                        .position_of(window_identifier)
+                        .unwrap_or_else(Point::origin);
+                    let parent_window_identifier =
+                        window_identifier.other_handle(user_window.parent_handle);
                     (parent_window_identifier, translation)
                 } else {
                     (window_identifier, Point::origin())
                 };
-                let dc = DeviceContext { bitmap_window_identifier, translation };
+                let dc = DeviceContext {
+                    bitmap_window_identifier,
+                    translation,
+                };
                 objects.gdi.register(GdiObject::DC(dc))
             }
             None => None,
@@ -497,24 +579,21 @@ impl<'a> EmulatedUser<'a> {
 
     #[api_function]
     fn internal_get_dc(&self, h_wnd: Handle) -> Result<ReturnValue, EmulatorError> {
-        Ok(ReturnValue::U16(self.get_dc(h_wnd).unwrap_or(Handle::null()).as_u16()))
+        Ok(ReturnValue::U16(
+            self.get_dc(h_wnd).unwrap_or(Handle::null()).as_u16(),
+        ))
     }
 
-    fn begin_paint(
-        &self,
-        h_wnd: Handle,
-    ) -> Option<Paint> {
-        self.get_dc(h_wnd).map(|hdc| {
-            Paint {
-                hdc,
-                f_erase: false,
-                rect: Rect {
-                    left: 0,
-                    top: 0,
-                    right: 200,
-                    bottom: 200,
-                },
-            }
+    fn begin_paint(&self, h_wnd: Handle) -> Option<Paint> {
+        self.get_dc(h_wnd).map(|hdc| Paint {
+            hdc,
+            f_erase: false,
+            rect: Rect {
+                left: 0,
+                top: 0,
+                right: 200,
+                bottom: 200,
+            },
         })
     }
 
@@ -526,10 +605,18 @@ impl<'a> EmulatedUser<'a> {
         paint_ptr: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         if let Some(paint) = self.begin_paint(h_wnd) {
-            accessor.memory_mut().write_16(paint_ptr.0, paint.hdc.as_u16())?;
-            accessor.memory_mut().write_8(paint_ptr.0.wrapping_add(2), paint.f_erase.into())?;
-            accessor.memory_mut().write_16(paint_ptr.0.wrapping_add(2), paint.rect.left)?;
-            accessor.memory_mut().write_16(paint_ptr.0.wrapping_add(2), paint.rect.top)?;
+            accessor
+                .memory_mut()
+                .write_16(paint_ptr.0, paint.hdc.as_u16())?;
+            accessor
+                .memory_mut()
+                .write_8(paint_ptr.0.wrapping_add(2), paint.f_erase.into())?;
+            accessor
+                .memory_mut()
+                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.left)?;
+            accessor
+                .memory_mut()
+                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.top)?;
             accessor
                 .memory_mut()
                 .write_16(paint_ptr.0.wrapping_add(2), paint.rect.right)?;
@@ -550,15 +637,15 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn internal_release_dc(&self, _h_wnd: Handle, hdc: Handle) -> Result<ReturnValue, EmulatorError> {
-        Ok(ReturnValue::U16(self.release_dc(_h_wnd, hdc).into()))
-    }
-
-    fn end_paint(
+    fn internal_release_dc(
         &self,
         _h_wnd: Handle,
         hdc: Handle,
-    ) -> u16 {
+    ) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::U16(self.release_dc(_h_wnd, hdc).into()))
+    }
+
+    fn end_paint(&self, _h_wnd: Handle, hdc: Handle) -> u16 {
         self.release_dc(_h_wnd, hdc).into()
     }
 
@@ -574,7 +661,12 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(self.end_paint(_h_wnd, handle.into())))
     }
 
-    fn with_paint_bitmap_for(&self, h_dc: Handle, objects: &RwLockReadGuard<ObjectEnvironment>, f: &dyn Fn(BitmapView)) {
+    fn with_paint_bitmap_for(
+        &self,
+        h_dc: Handle,
+        objects: &RwLockReadGuard<ObjectEnvironment>,
+        f: &dyn Fn(BitmapView),
+    ) {
         if let Some(GdiObject::DC(device_context)) = objects.gdi.get(h_dc) {
             if let Some(bitmap) = objects
                 .write_window_manager()
@@ -604,14 +696,34 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn set_timer(&self, h_wnd: Handle, id_event: u16, elapse: u16, timer_proc_segment: u16, timer_proc_offset: u16) -> Result<ReturnValue, EmulatorError> {
-        println!("SET TIMER {:?}, {:x}, {}, {:x}, {:x}", h_wnd, id_event, elapse, timer_proc_segment, timer_proc_offset);
+    fn set_timer(
+        &self,
+        h_wnd: Handle,
+        id_event: u16,
+        elapse: u16,
+        timer_proc_segment: u16,
+        timer_proc_offset: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        println!(
+            "SET TIMER {:?}, {:x}, {}, {:x}, {:x}",
+            h_wnd, id_event, elapse, timer_proc_segment, timer_proc_offset
+        );
         Ok(ReturnValue::U16(0))
     }
 
     #[api_function]
-    fn message_box(&self, accessor: EmulatorAccessor, h_wnd: Handle, text: Pointer, caption: Pointer, _type: u16) -> Result<ReturnValue, EmulatorError> {
-        println!("MESSAGE BOX {:?}, {:x}, {:x}, {:x}", h_wnd, text.0, caption.0, _type);
+    fn message_box(
+        &self,
+        accessor: EmulatorAccessor,
+        h_wnd: Handle,
+        text: Pointer,
+        caption: Pointer,
+        _type: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        println!(
+            "MESSAGE BOX {:?}, {:x}, {:x}, {:x}",
+            h_wnd, text.0, caption.0, _type
+        );
         debug_print_null_terminated_string(&accessor, text.0);
         debug_print_null_terminated_string(&accessor, caption.0);
         Ok(ReturnValue::U16(0))
