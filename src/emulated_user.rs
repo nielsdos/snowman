@@ -6,7 +6,7 @@ use crate::constants::{ClassStyles, MessageType, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
-use crate::message_queue::MessageQueue;
+use crate::message_queue::{MessageQueue, WindowMessage};
 use crate::object_environment::{
     DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow,
 };
@@ -177,7 +177,7 @@ impl<'a> EmulatedUser<'a> {
                     &mut accessor,
                     proc,
                     window_handle,
-                    MessageType::Create,
+                    MessageType::Create.into(),
                     0,
                     0,
                 )?;
@@ -203,6 +203,7 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn show_window(&self, h_wnd: Handle, cmd_show: u16) -> Result<ReturnValue, EmulatorError> {
         println!("show window {:?} {:x}", h_wnd, cmd_show);
+
         let objects = self.write_objects();
         let success = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
@@ -217,6 +218,20 @@ impl<'a> EmulatedUser<'a> {
             }
             None => false,
         };
+
+        if success {
+            // TODO: iirc this should only be done when the window was not visible yet and now became visible
+            //       ... And if the message queue is empty? (not sure about this)
+            self.message_queue.send(WindowMessage {
+                h_wnd,
+                message: MessageType::Paint,
+                w_param: 0,
+                l_param: 0,
+                time: 0,
+                point: Point::origin(),
+            });
+        }
+
         Ok(ReturnValue::U16(success.into()))
     }
 
@@ -233,7 +248,7 @@ impl<'a> EmulatedUser<'a> {
                     self.recursive_window_paint(accessor, objects, *child);
                 }
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(accessor, user_window.proc, h_wnd, MessageType::Paint, 0, 0)
+                self.call_wndproc_sync(accessor, user_window.proc, h_wnd, MessageType::Paint.into(), 0, 0)
                     .is_ok()
             }
             _ => false,
@@ -328,25 +343,55 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn get_message(
         &self,
-        _msg: u32,
+        mut accessor: EmulatorAccessor,
+        msg: Pointer,
         h_wnd: Handle,
         _msg_filter_min: u16,
         _msg_filer_max: u16,
     ) -> Result<ReturnValue, EmulatorError> {
-        // TODO: implement filters
+        // TODO: implement min & max filters
         let return_value = if let Some(message) = self.message_queue.receive(h_wnd) {
-            // TODO: write message to memory
+            let message_type = message.message;
+            accessor.memory_mut().write_16(msg.0, message.h_wnd.as_u16())?;
+            accessor.memory_mut().write_16(msg.0 + 2, message_type.into())?;
+            accessor.memory_mut().write_16(msg.0 + 4, message.w_param)?;
+            accessor.memory_mut().write_32(msg.0 + 6, message.l_param)?;
+            accessor.memory_mut().write_32(msg.0 + 10, message.time)?;
+            accessor.memory_mut().write_16(msg.0 + 14, message.point.x)?;
+            accessor.memory_mut().write_16(msg.0 + 16, message.point.y)?;
 
-            if message.message == MessageType::Quit {
+            if message_type == MessageType::Quit {
                 0
             } else {
                 1
             }
         } else {
-            println!("error {:?}", h_wnd);
-            0xffff
+            0xFFFF
         };
         Ok(ReturnValue::U16(return_value))
+    }
+
+    #[api_function]
+    fn translate_message(&self, _msg: Pointer) -> Result<ReturnValue, EmulatorError> {
+        Ok(ReturnValue::U16(0))
+    }
+
+    #[api_function]
+    fn dispatch_message(&self, mut accessor: EmulatorAccessor, msg: Pointer) -> Result<ReturnValue, EmulatorError> {
+        let h_wnd: Handle = accessor.memory().read_16(msg.0)?.into();
+        let message_type = accessor.memory().read_16(msg.0 + 2)?;
+        let w_param = accessor.memory().read_16(msg.0 + 4)?;
+        let l_param = accessor.memory().read_32(msg.0 + 6)?;
+
+        match self.read_objects().user.get(h_wnd) {
+            Some(UserObject::Window(user_window)) => {
+                self.call_wndproc_sync(&mut accessor, user_window.proc, h_wnd, message_type, w_param, l_param)?;
+            }
+            _ => {},
+        };
+
+        // Return value will be set by the wnd proc
+        Ok(ReturnValue::None)
     }
 
     #[api_function]
@@ -400,13 +445,13 @@ impl<'a> EmulatedUser<'a> {
         accessor: &mut EmulatorAccessor,
         proc: SegmentAndOffset,
         h_wnd: Handle,
-        message: MessageType,
+        message: u16,
         w_param: u16,
         l_param: u32,
     ) -> Result<(), EmulatorError> {
         accessor.far_call_into_proc_setup()?;
         accessor.push_16(h_wnd.as_u16())?;
-        accessor.push_16(message.into())?;
+        accessor.push_16(message)?;
         accessor.push_16(w_param)?;
         accessor.push_16((l_param >> 16) as u16)?;
         accessor.push_16(l_param as u16)?;
@@ -863,6 +908,8 @@ impl<'a> EmulatedUser<'a> {
             87 => self.__api_dialog_box(emulator_accessor),
             107 => self.__api_def_window_proc(emulator_accessor),
             108 => self.__api_get_message(emulator_accessor),
+            113 => self.__api_translate_message(emulator_accessor),
+            114 => self.__api_dispatch_message(emulator_accessor),
             124 => self.__api_update_window(emulator_accessor),
             154 => self.__api_check_menu_item(emulator_accessor),
             155 => self.__api_enable_menu_item(emulator_accessor),

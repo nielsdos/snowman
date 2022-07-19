@@ -30,7 +30,7 @@ bitflags! {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub enum MessageType {
     Create = 0x01,
     Paint = 0x0f,

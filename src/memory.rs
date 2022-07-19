@@ -44,6 +44,18 @@ impl Memory {
         }
     }
 
+    pub fn write_32(&mut self, address: u32, data: u32) -> Result<(), EmulatorError> {
+        if ((address + 3) as usize) < MEMORY_SIZE {
+            self.bytes[address as usize] = data as u8;
+            self.bytes[address as usize + 1] = (data >> 8) as u8;
+            self.bytes[address as usize + 2] = (data >> 16) as u8;
+            self.bytes[address as usize + 3] = (data >> 24) as u8;
+            Ok(())
+        } else {
+            Err(EmulatorError::OutOfBounds)
+        }
+    }
+
     pub fn write_8(&mut self, address: u32, data: u8) -> Result<(), EmulatorError> {
         *self
             .bytes
