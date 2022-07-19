@@ -274,17 +274,20 @@ impl<'a> Emulator<'a> {
         self.write_mod_rm::<8>(mod_rm, data)
     }
 
-    fn or_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+    fn generic_bitwise_r_rm<const N: usize, F: Fn(u16, u16) -> u16>(&mut self, f: F) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result = self.read_mod_rm::<N>(mod_rm)?
-            | self
-                .regs
-                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
+        let result = f(self.read_mod_rm::<N>(mod_rm)?, self
+            .regs
+            .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()));
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
             .handle_bitwise_result_u_generic::<N>(false, result);
         Ok(())
+    }
+
+    fn or_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+        self.generic_bitwise_r_rm::<N, _>(|a, b| a | b)
     }
 
     fn or_r16_rm16(&mut self) -> Result<(), EmulatorError> {
@@ -307,21 +310,10 @@ impl<'a> Emulator<'a> {
     }
 
     fn xor_r_rm_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
-        // TODO: generalise with the above OR function
-        let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result = self.read_mod_rm::<N>(mod_rm)?
-            ^ self
-                .regs
-                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination());
-        self.regs
-            .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
-        self.regs
-            .handle_bitwise_result_u_generic::<N>(false, result);
-        Ok(())
+        self.generic_bitwise_r_rm::<N, _>(|a, b| a ^ b)
     }
 
     fn xor_rm_r_generic<const N: usize>(&mut self) -> Result<(), EmulatorError> {
-        // TODO: generalise with the above OR function
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let result = self.read_mod_rm::<N>(mod_rm)?
             ^ self
@@ -697,12 +689,12 @@ impl<'a> Emulator<'a> {
         self.cmp_rm_imm::<8>()
     }
 
-    fn sub_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
+    fn sub_r_rm<const N: usize>(&mut self, extra: u16) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let (result, result_did_carry) = self
             .regs
             .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination())
-            .overflowing_sub(self.read_mod_rm::<N>(mod_rm)?);
+            .overflowing_sub(self.read_mod_rm::<N>(mod_rm)?.wrapping_add(extra));
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
@@ -711,24 +703,36 @@ impl<'a> Emulator<'a> {
     }
 
     fn sub_r8_rm8(&mut self) -> Result<(), EmulatorError> {
-        self.sub_r_rm::<8>()
+        self.sub_r_rm::<8>(0)
     }
 
     fn sub_r16_rm16(&mut self) -> Result<(), EmulatorError> {
-        self.sub_r_rm::<16>()
+        self.sub_r_rm::<16>(0)
     }
 
-    fn sub_al_imm8(&mut self) -> Result<(), EmulatorError> {
+    fn sbb_r16_rm16(&mut self) -> Result<(), EmulatorError> {
+        self.sub_r_rm::<16>(self.regs.flag_carry().into())
+    }
+
+    fn sub_al_imm8_helper(&mut self, extra: u8) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r8_imm8
         let data = self.read_ip_u8()?;
         let (result, result_did_carry) = self
             .regs
             .read_gpr_lo_8(Registers::REG_AL)
-            .overflowing_sub(data);
+            .overflowing_sub(data.wrapping_add(extra));
         self.regs.write_gpr_lo_8(Registers::REG_AL, result);
         self.regs
             .handle_arithmetic_result_u8(result, result_did_carry, true);
         Ok(())
+    }
+
+    fn sub_al_imm8(&mut self) -> Result<(), EmulatorError> {
+        self.sub_al_imm8_helper(0)
+    }
+
+    fn sbb_al_imm8(&mut self) -> Result<(), EmulatorError> {
+        self.sub_al_imm8_helper(self.regs.flag_carry().into())
     }
 
     fn sub_ax_imm16(&mut self) -> Result<(), EmulatorError> {
@@ -972,6 +976,8 @@ impl<'a> Emulator<'a> {
             0x0B => self.or_r16_rm16(),
             0x0E => self.push_segment_16(Registers::REG_CS),
             0x16 => self.push_segment_16(Registers::REG_SS),
+            0x1B => self.sbb_r16_rm16(),
+            0x1C => self.sbb_al_imm8(),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x1F => self.pop_segment_16(Registers::REG_DS),
             0x26 => self.segment_override(Registers::REG_ES),
@@ -1026,6 +1032,7 @@ impl<'a> Emulator<'a> {
             0x74 => self.jcc(self.regs.flag_zero()),
             0x75 => self.jcc(!self.regs.flag_zero()),
             0x7C => self.jcc(self.regs.flag_sign() ^ self.regs.flag_overflow()),
+            0x7D => self.jcc(self.regs.flag_sign() == self.regs.flag_overflow()),
             0x7E => self
                 .jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
             0x7F => self.jcc(!self.regs.flag_zero() & !self.regs.flag_sign()),
@@ -1080,11 +1087,11 @@ impl<'a> Emulator<'a> {
         }
     }
 
-    fn log(&self) {
+    fn log(&self, old_ip: u16) {
         debug!(
             "[cpu] Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}, DS={:x}",
             self.regs.read_segment(Registers::REG_CS),
-            self.regs.ip,
+            old_ip,
             self.regs.read_gpr_16(Registers::REG_AX),
             self.regs.read_gpr_16(Registers::REG_BX),
             self.regs.read_gpr_16(Registers::REG_CX),
@@ -1097,8 +1104,9 @@ impl<'a> Emulator<'a> {
     }
 
     pub fn step(&mut self) {
+        let old_ip = self.regs.ip;
         if let Err(error) = self.execute_opcode() {
-            self.log();
+            self.log(old_ip);
             panic!("TODO: error handling for {:?}", error);
         }
     }
