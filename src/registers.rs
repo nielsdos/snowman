@@ -230,6 +230,14 @@ impl Registers {
         self.set_zf_pf_sf::<N>(result);
     }
 
+    pub fn handle_imul_result_u16(&mut self, result_did_carry: bool) {
+        if result_did_carry {
+            self.flags |= Self::FLAG_OF | Self::FLAG_CF;
+        } else {
+            self.flags &= !(Self::FLAG_OF | Self::FLAG_CF);
+        }
+    }
+
     pub fn handle_arithmetic_result_u16(
         &mut self,
         result: u16,

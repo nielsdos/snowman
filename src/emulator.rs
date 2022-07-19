@@ -1010,6 +1010,15 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
+    fn imul_r16_rm16_imm8(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm::<16>()?;
+        let imm = self.read_ip_i8()?;
+        let (result, result_did_carry) = self.read_mod_rm_16(mod_rm)?.overflowing_mul(imm as u16);
+        self.regs.write_gpr_16(mod_rm.mod_rm_byte.register_destination(), result);
+        self.regs.handle_imul_result_u16(result_did_carry);
+        Ok(())
+    }
+
     pub fn execute_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
             0x00 => self.add_rm8_r8(),
@@ -1074,7 +1083,8 @@ impl<'a> Emulator<'a> {
             0x5E => self.pop_gpr_16(Registers::REG_SI),
             0x5F => self.pop_gpr_16(Registers::REG_DI),
             0x68 => self.push_imm16(),
-            0x6a => self.push_imm8(),
+            0x6A => self.push_imm8(),
+            0x6B => self.imul_r16_rm16_imm8(),
             0x72 => self.jcc(self.regs.flag_carry()),
             0x73 => self.jcc(!self.regs.flag_carry()),
             0x74 => self.jcc(self.regs.flag_zero()),
