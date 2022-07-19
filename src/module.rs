@@ -162,8 +162,9 @@ impl GdiModule {
 impl Module for GdiModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            68 | 69 => 2,
-            2 | 66 | 80 | 119 => 4,
+            68 | 69 | 87 => 2,
+            2 | 45 | 66 | 80 | 119 => 4,
+            27 => 10,
             53 => 16,
             _ => 0,
         }

@@ -20,6 +20,8 @@ pub enum UserObject {
 pub struct DeviceContext {
     pub bitmap_window_identifier: WindowIdentifier,
     pub translation: Point,
+    pub selected_brush: Handle,
+    pub selected_pen: Handle,
 }
 
 pub struct Pen {
@@ -28,10 +30,18 @@ pub struct Pen {
     pub color: Color,
 }
 
+pub enum GdiSelectionObjectType {
+    SolidBrush,
+    Pen,
+    Invalid,
+}
+
 pub enum GdiObject {
     DC(DeviceContext),
     SolidBrush(Color),
     Pen(Pen),
+    // TODO: remove me once we have all types
+    Placeholder
 }
 
 pub struct ObjectEnvironment<'a> {
@@ -53,9 +63,36 @@ impl UserWindow {
 
 impl<'a> ObjectEnvironment<'a> {
     pub fn new(window_manager: &'a RwLock<WindowManager>) -> Self {
+        let mut gdi = HandleTable::new();
+
+        // Stock objects
+        gdi.register(GdiObject::SolidBrush(Color(255, 255, 255)));
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::SolidBrush(Color(0, 0, 0)));
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Pen(Pen {
+            width: 1,
+            color: Color(255, 255, 255),
+        }));
+        gdi.register(GdiObject::Pen(Pen {
+            width: 1,
+            color: Color(0, 0, 0),
+        }));
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+        gdi.register(GdiObject::Placeholder);
+
         Self {
             user: HandleTable::new(),
-            gdi: HandleTable::new(),
+            gdi,
             window_manager,
         }
     }
@@ -66,5 +103,23 @@ impl<'a> ObjectEnvironment<'a> {
 
     pub fn write_window_manager(&self) -> RwLockWriteGuard<WindowManager> {
         self.window_manager.write().unwrap()
+    }
+}
+
+impl DeviceContext {
+    pub fn select(&mut self, selection_type: GdiSelectionObjectType, handle: Handle) -> Handle {
+        match selection_type {
+            GdiSelectionObjectType::SolidBrush => {
+                let old = self.selected_brush;
+                self.selected_brush = handle;
+                old
+            }
+            GdiSelectionObjectType::Pen => {
+                let old = self.selected_pen;
+                self.selected_pen = handle;
+                old
+            },
+            GdiSelectionObjectType::Invalid => Handle::null(),
+        }
     }
 }

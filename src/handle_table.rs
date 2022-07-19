@@ -49,6 +49,10 @@ impl<K: GenericHandle, V> GenericHandleTable<K, V> {
 pub struct Handle(u16);
 
 impl Handle {
+    pub const fn from_u16(x: u16) -> Self {
+        Self(x)
+    }
+
     pub const fn null() -> Self {
         Self(0)
     }

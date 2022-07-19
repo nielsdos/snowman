@@ -2,9 +2,9 @@ use crate::api_helpers::{Pointer, ReturnValue};
 use crate::constants::DeviceCapRequest;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
-use crate::object_environment::{GdiObject, Pen};
+use crate::object_environment::{GdiObject, GdiSelectionObjectType, Pen};
 use crate::{debug, EmulatorError, ObjectEnvironment};
-use std::sync::{RwLock, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
 
 pub struct EmulatedGdi<'a> {
@@ -18,6 +18,10 @@ impl<'a> EmulatedGdi<'a> {
 
     fn write_objects(&self) -> RwLockWriteGuard<'_, ObjectEnvironment<'a>> {
         self.objects.write().unwrap()
+    }
+
+    fn read_objects(&self) -> RwLockReadGuard<'_, ObjectEnvironment<'a>> {
+        self.objects.read().unwrap()
     }
 
     #[api_function]
@@ -69,6 +73,16 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
+    fn get_stock_object(&self, index: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("Get stock object! {}", index);
+        if index > 16 {
+            Ok(ReturnValue::U16(0))
+        } else {
+            Ok(ReturnValue::U16(Handle::from_u16(index + 1).as_u16()))
+        }
+    }
+
+    #[api_function]
     fn add_font_resource(&self, _pointer: Pointer) -> Result<ReturnValue, EmulatorError> {
         // TODO: this always indicates failure right now
         Ok(ReturnValue::U16(0))
@@ -116,7 +130,6 @@ impl<'a> EmulatedGdi<'a> {
 
     #[api_function]
     fn muldiv(&self, a: u16, b: u16, c: u16) -> Result<ReturnValue, EmulatorError> {
-        println!("MULDIV: {} {} {}", a, b, c);
         let mul = (a as u32) * (b as u32);
         // Add half the denominator for rounding
         let mul_with_half_denominator = mul.wrapping_add((c as u32) >> 1);
@@ -124,6 +137,7 @@ impl<'a> EmulatedGdi<'a> {
             .checked_div(c as u32)
             .and_then(|result| u16::try_from(result).ok())
             .unwrap_or(0xffff);
+        println!("MULDIV: {} {} {} = {}", a, b, c, result);
         Ok(ReturnValue::U16(result))
     }
 
@@ -133,6 +147,31 @@ impl<'a> EmulatedGdi<'a> {
         Ok(ReturnValue::U16(1)) // TODO: old bg mode
     }
 
+    #[api_function]
+    fn select_object(&self, hdc: Handle, object: Handle) -> Result<ReturnValue, EmulatorError> {
+        let mut objects = self.write_objects();
+        let selection_type = {
+            match objects.gdi.get(object) {
+                Some(GdiObject::SolidBrush(_)) => GdiSelectionObjectType::SolidBrush,
+                Some(GdiObject::Pen(_)) => GdiSelectionObjectType::Pen,
+                _ => GdiSelectionObjectType::Invalid,
+            }
+        };
+        let return_value = match objects.gdi.get_mut(hdc) {
+            Some(GdiObject::DC(dc)) => dc.select(selection_type, object),
+            _ => Handle::null(),
+        };
+        Ok(ReturnValue::U16(return_value.as_u16()))
+    }
+
+    #[api_function]
+    fn rectangle(&self, hdc: Handle, left: i16, top: i16, right: i16, bottom: i16) -> Result<ReturnValue, EmulatorError> {
+        println!("{:?} {} {} {} {}", hdc, left, top, right, bottom);
+
+        assert!(false);
+        Ok(ReturnValue::U16(0))
+    }
+
     pub fn syscall(
         &self,
         nr: u16,
@@ -140,12 +179,15 @@ impl<'a> EmulatedGdi<'a> {
     ) -> Result<ReturnValue, EmulatorError> {
         match nr {
             2 => self.__api_set_bk_mode(emulator_accessor),
+            27 => self.__api_rectangle(emulator_accessor),
+            45 => self.__api_select_object(emulator_accessor),
             53 => self.__api_create_dc(emulator_accessor),
             61 => self.__api_create_pen(emulator_accessor),
             66 => self.__api_create_solid_brush(emulator_accessor),
             68 => self.__api_delete_dc(emulator_accessor),
             69 => self.__api_delete_object(emulator_accessor),
             80 => self.__api_get_device_caps(emulator_accessor),
+            87 => self.__api_get_stock_object(emulator_accessor),
             119 => self.__api_add_font_resource(emulator_accessor),
             128 => self.__api_muldiv(emulator_accessor),
             nr => {

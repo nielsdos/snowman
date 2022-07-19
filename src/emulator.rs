@@ -1239,8 +1239,8 @@ impl<'a> Emulator<'a> {
 
     pub fn step(&mut self) {
         let old_ip = self.regs.ip;
-        self.log(old_ip);
         if let Err(error) = self.execute_opcode() {
+            self.log(old_ip);
             panic!("TODO: error handling for {:?}", error);
         }
     }

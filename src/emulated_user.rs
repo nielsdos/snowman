@@ -665,6 +665,8 @@ impl<'a> EmulatedUser<'a> {
                 let dc = DeviceContext {
                     bitmap_window_identifier,
                     translation,
+                    selected_brush: Handle::null(),
+                    selected_pen: Handle::null(),
                 };
                 objects.gdi.register(GdiObject::DC(dc))
             }
