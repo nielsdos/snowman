@@ -369,10 +369,16 @@ impl<'a> Emulator<'a> {
         self.write_mod_rm::<N>(mod_rm, data)
     }
 
-    fn jcc(&mut self, condition: bool) -> Result<(), EmulatorError> {
-        let destination_offset = self.read_ip_i8()?;
+    fn jcc<const N: usize>(&mut self, condition: bool) -> Result<(), EmulatorError> {
+        let destination_offset = if N == 8 {
+            self.read_ip_i8()? as u16
+        } else if N == 16 {
+            self.read_ip_u16()?
+        } else {
+            unreachable!()
+        };
         if condition {
-            self.regs.ip = self.regs.ip.wrapping_add(destination_offset as u16);
+            self.regs.ip = self.regs.ip.wrapping_add(destination_offset);
         }
         Ok(())
     }
@@ -1055,6 +1061,22 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
+    fn op_0x0f(&mut self) -> Result<(), EmulatorError> {
+        match self.read_ip_u8()? {
+            0x82 => self.jcc::<16>(self.regs.flag_carry()),
+            0x83 => self.jcc::<16>(!self.regs.flag_carry()),
+            0x84 => self.jcc::<16>(self.regs.flag_zero()),
+            0x85 => self.jcc::<16>(!self.regs.flag_zero()),
+            0x87 => self.jcc::<16>(!self.regs.flag_zero() & !self.regs.flag_carry()),
+            0x8C => self.jcc::<16>(self.regs.flag_sign() ^ self.regs.flag_overflow()),
+            0x8D => self.jcc::<16>(self.regs.flag_sign() == self.regs.flag_overflow()),
+            0x8E => self
+                .jcc::<16>(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x8F => self.jcc::<16>(!self.regs.flag_zero() & !self.regs.flag_sign()),
+            _ => Err(EmulatorError::InvalidOpcode)
+        }
+    }
+
     pub fn execute_opcode(&mut self) -> Result<(), EmulatorError> {
         match self.read_ip_u8()? {
             0x00 => self.add_rm8_r8(),
@@ -1067,6 +1089,7 @@ impl<'a> Emulator<'a> {
             0x0A => self.or_r8_rm8(),
             0x0B => self.or_r16_rm16(),
             0x0E => self.push_segment_16(Registers::REG_CS),
+            0x0F => self.op_0x0f(),
             0x16 => self.push_segment_16(Registers::REG_SS),
             0x1B => self.sbb_r16_rm16(),
             0x1C => self.sbb_al_imm8(),
@@ -1121,16 +1144,16 @@ impl<'a> Emulator<'a> {
             0x68 => self.push_imm16(),
             0x6A => self.push_imm8(),
             0x6B => self.imul_r16_rm16_imm8(),
-            0x72 => self.jcc(self.regs.flag_carry()),
-            0x73 => self.jcc(!self.regs.flag_carry()),
-            0x74 => self.jcc(self.regs.flag_zero()),
-            0x75 => self.jcc(!self.regs.flag_zero()),
-            0x77 => self.jcc(!self.regs.flag_zero() & !self.regs.flag_carry()),
-            0x7C => self.jcc(self.regs.flag_sign() ^ self.regs.flag_overflow()),
-            0x7D => self.jcc(self.regs.flag_sign() == self.regs.flag_overflow()),
+            0x72 => self.jcc::<8>(self.regs.flag_carry()),
+            0x73 => self.jcc::<8>(!self.regs.flag_carry()),
+            0x74 => self.jcc::<8>(self.regs.flag_zero()),
+            0x75 => self.jcc::<8>(!self.regs.flag_zero()),
+            0x77 => self.jcc::<8>(!self.regs.flag_zero() & !self.regs.flag_carry()),
+            0x7C => self.jcc::<8>(self.regs.flag_sign() ^ self.regs.flag_overflow()),
+            0x7D => self.jcc::<8>(self.regs.flag_sign() == self.regs.flag_overflow()),
             0x7E => self
-                .jcc(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
-            0x7F => self.jcc(!self.regs.flag_zero() & !self.regs.flag_sign()),
+                .jcc::<8>(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x7F => self.jcc::<8>(!self.regs.flag_zero() & !self.regs.flag_sign()),
             0x80 => self.cmp_rm8_imm8(),
             0x81 => self.op_0x81(),
             0x83 => self.op_0x83(),
