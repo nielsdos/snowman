@@ -849,6 +849,17 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
+    fn add_ax_imm16(&mut self) -> Result<(), EmulatorError> {
+        let data = self.read_ip_u16()?;
+        let (result, result_did_carry) = self
+            .regs
+            .read_gpr_16(Registers::REG_AX)
+            .overflowing_add(data);
+        self.regs
+            .handle_arithmetic_result_u16(result, result_did_carry, true);
+        Ok(())
+    }
+
     fn op_0x81_0x83<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let current_destination_data = self.read_mod_rm_16(mod_rm)?;
@@ -1083,6 +1094,7 @@ impl<'a> Emulator<'a> {
             0x01 => self.add_rm16_r16(),
             0x03 => self.add_r16_rm16(),
             0x04 => self.add_al_imm8(),
+            0x05 => self.add_ax_imm16(),
             0x06 => self.push_segment_16(Registers::REG_ES),
             0x07 => self.pop_segment_16(Registers::REG_ES),
             0x09 => self.or_rm16_r16(),
