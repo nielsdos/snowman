@@ -516,13 +516,19 @@ pub struct ResourceTable {
     strings_resources: HashMap<u16, HeapByteString>,
 }
 
+impl ResourceTable {
+    pub fn new() -> Self {
+        Self {
+            strings_resources: HashMap::new(),
+        }
+    }
+}
+
 fn process_resource_table(
     executable: &mut Executable,
     offset_to_resource_table: usize,
 ) -> Result<ResourceTable, ExecutableFormatError> {
-    let mut resource_table = ResourceTable {
-        strings_resources: HashMap::new(),
-    };
+    let mut resource_table = ResourceTable::new();
 
     let old_cursor = executable.seek_from_here(offset_to_resource_table)?;
     let alignment_shift_count = executable.read_u16(0)?;
@@ -599,6 +605,7 @@ fn process_file_ne(
     let offset_to_entry_table = executable.read_u16(0x04)? as usize;
     let entry_table_bytes = executable.read_u16(0x06)? as usize;
     let offset_to_resource_table = executable.read_u16(0x24)? as usize;
+    let offset_to_resident_name_table = executable.read_u16(0x26)? as usize;
     let segment_table_segment_count = executable.read_u16(0x1C)? as usize;
     let module_reference_count = executable.read_u16(0x1E)?;
     let offset_to_segment_table = executable.read_u16(0x22)? as usize;
@@ -618,8 +625,11 @@ fn process_file_ne(
         module_reference_count,
     )?;
     let entry_table = process_entry_table(executable, offset_to_entry_table, entry_table_bytes)?;
-    let resource_table = process_resource_table(executable, offset_to_resource_table)?;
-    println!("{:?}", resource_table.strings_resources);
+    let resource_table = if offset_to_resident_name_table == offset_to_resident_name_table {
+        ResourceTable::new()
+    } else {
+        process_resource_table(executable, offset_to_resource_table)?
+    };
 
     println!(
         "Expected Windows version: {}.{}",
