@@ -12,7 +12,7 @@ use crate::object_environment::{
 use crate::two_d::{Point, Rect};
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
-use crate::{debug, EmulatorError};
+use crate::{debug, EmulatorError, ResourceTable};
 use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -40,6 +40,7 @@ struct Paint {
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
 pub struct EmulatedUser<'a> {
     user_atom_table: AtomTable<'a>,
+    resource_table: ResourceTable,
     window_classes: HashMap<ByteString<'a>, WindowClass<'a>>,
     objects: &'a RwLock<ObjectEnvironment<'a>>,
 }
@@ -47,6 +48,7 @@ pub struct EmulatedUser<'a> {
 impl<'a> EmulatedUser<'a> {
     pub fn new(
         objects: &'a RwLock<ObjectEnvironment<'a>>,
+        resource_table: ResourceTable,
         button_wnd_proc: SegmentAndOffset,
     ) -> Self {
         let mut window_classes = HashMap::new();
@@ -65,6 +67,7 @@ impl<'a> EmulatedUser<'a> {
         );
         Self {
             user_atom_table: AtomTable::new(),
+            resource_table,
             window_classes,
             objects,
         }
@@ -344,6 +347,7 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn load_string(
         &self,
+        mut accessor: EmulatorAccessor,
         h_instance: Handle,
         uid: u16,
         buffer: Pointer,
@@ -353,7 +357,26 @@ impl<'a> EmulatedUser<'a> {
             "LOAD STRING {:?} {:x} {:x} {:x}",
             h_instance, uid, buffer.0, buffer_max
         );
-        Ok(ReturnValue::U16(0))
+
+        // TODO: keep h_instance into account...
+        if let Some(string) = self.resource_table.strings_resources.get(&uid) {
+            let string = string.as_slice();
+            let length = string.len();
+            let amount_of_bytes_to_copy = if buffer_max == 0 {
+                length
+            } else {
+                (buffer_max as usize).min(length)
+            };
+
+            accessor.memory_mut().copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
+
+            debug_print_null_terminated_string(&mut accessor, buffer.0);
+            // String lengths from the resource table will fit in 16 bits, because their length
+            // was originally 8 bits.
+            Ok(ReturnValue::U16(amount_of_bytes_to_copy as u16))
+        } else {
+            Ok(ReturnValue::U16(0))
+        }
     }
 
     #[api_function]

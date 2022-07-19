@@ -863,6 +863,13 @@ impl<'a> Emulator<'a> {
         self.write_memory_to_segment::<16>(offset, self.regs.read_gpr_16(Registers::REG_AX))
     }
 
+    fn mov_al_moffs8(&mut self) -> Result<(), EmulatorError> {
+        let offset = self.read_ip_u8()?;
+        let data = self.read_memory_from_segment::<8>(offset as u16)?;
+        self.regs.write_gpr_lo_8(Registers::REG_AL, data as u8);
+        Ok(())
+    }
+
     fn mov_ax_moffs16(&mut self) -> Result<(), EmulatorError> {
         let offset = self.read_ip_u16()?;
         let data = self.read_memory_from_segment::<16>(offset)?;
@@ -1058,10 +1065,11 @@ impl<'a> Emulator<'a> {
             0x90 => self.nop(),
             0x99 => self.cwd(),
             0x9A => self.call_far_with_32b_displacement(),
-            0xAA => self.stosb(),
+            0xA0 => self.mov_al_moffs8(),
             0xA1 => self.mov_ax_moffs16(),
             0xA2 => self.mov_moffs8_al(),
             0xA3 => self.mov_moffs16_ax(),
+            0xAA => self.stosb(),
             0xB0 => self.mov_al_imm8(),
             0xB4 => self.mov_ah_imm8(),
             0xB8 => self.mov_r16_imm16(Registers::REG_AX),

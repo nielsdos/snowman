@@ -17,6 +17,8 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
+use sdl2::keyboard::Keycode::Hash;
+use crate::byte_string::{ByteString, HeapByteString};
 
 #[macro_use]
 extern crate num_derive;
@@ -510,6 +512,72 @@ fn perform_relocations(
     Ok(())
 }
 
+pub struct ResourceTable {
+    strings_resources: HashMap<u16, HeapByteString>,
+}
+
+fn process_resource_table(executable: &mut Executable, offset_to_resource_table: usize) -> Result<ResourceTable, ExecutableFormatError> {
+    let mut resource_table = ResourceTable {
+        strings_resources: HashMap::new(),
+    };
+
+    let old_cursor = executable.seek_from_here(offset_to_resource_table)?;
+    let alignment_shift_count = executable.read_u16(0)?;
+
+    let mut offset = 2;
+    loop {
+        let type_id = executable.read_u16(offset)?;
+        if type_id == 0 {
+            break;
+        }
+        let number_of_resources_for_this_type = executable.read_u16(offset + 2)?;
+        println!("type id {:x} -> {}", type_id, number_of_resources_for_this_type);
+
+        // two fields of above, and 4 reserved bytes
+        offset += 8;
+
+        for index in 0..number_of_resources_for_this_type {
+            let resource_offset_in_file = (executable.read_u16(offset)? as usize) << alignment_shift_count;
+            let length = (executable.read_u16(offset + 2)? as usize) << alignment_shift_count;
+            let id = executable.read_u16(offset + 6)?;
+            println!("entry index {}, id {}, length {}", index, id, length);
+            // TODO: support non-integer ids
+            let id = id & !0x8000;
+
+            // String table
+            if type_id == 0x8006 {
+                let old_cursor = executable.seek_from_start(resource_offset_in_file)?;
+                let mut string_offset = 0;
+
+                let mut string_index = 0;
+                while string_offset < length {
+                    let string_length = executable.read_u8(string_offset)?;
+                    string_offset += 1;
+                    if string_length != 0 {
+                        // https://docs.microsoft.com/en-us/windows/win32/menurc/stringtable-resource
+                        // Page on link above says each string table holds up to 16 entries,
+                        // and every entry id shares the same lower 4 bits.
+                        // I'm not sure why, but the string IDs seem to be 0-based, while the IDs here seem to be 1-based...
+                        let string_id = (id.wrapping_sub(1) * 16) + string_index;
+                        let string_slice = executable.slice(string_offset, string_length as usize)?;
+                        let string = HeapByteString::from(string_slice.into());
+                        resource_table.strings_resources.insert(string_id, string);
+                        string_offset += string_length as usize;
+                    }
+                    string_index += 1;
+                }
+
+                executable.restore_cursor(old_cursor);
+            }
+
+            offset += 12;
+        }
+    }
+
+    executable.restore_cursor(old_cursor);
+    Ok(resource_table)
+}
+
 fn process_file_ne(
     executable: &mut Executable,
     ne_header_offset: usize,
@@ -522,6 +590,7 @@ fn process_file_ne(
 
     let offset_to_entry_table = executable.read_u16(0x04)? as usize;
     let entry_table_bytes = executable.read_u16(0x06)? as usize;
+    let offset_to_resource_table = executable.read_u16(0x24)? as usize;
     let segment_table_segment_count = executable.read_u16(0x1C)? as usize;
     let module_reference_count = executable.read_u16(0x1E)?;
     let offset_to_segment_table = executable.read_u16(0x22)? as usize;
@@ -540,8 +609,9 @@ fn process_file_ne(
         offset_to_module_reference_table,
         module_reference_count,
     )?;
-
     let entry_table = process_entry_table(executable, offset_to_entry_table, entry_table_bytes)?;
+    let resource_table = process_resource_table(executable, offset_to_resource_table)?;
+    println!("{:?}", resource_table.strings_resources);
 
     println!(
         "Expected Windows version: {}.{}",
@@ -635,7 +705,7 @@ fn process_file_ne(
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
     let objects = RwLock::new(ObjectEnvironment::new(window_manager));
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new(&objects, button_wnd_proc);
+    let emulated_user = EmulatedUser::new(&objects, resource_table, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
