@@ -59,9 +59,9 @@ fn main() -> Result<(), String> {
     let window_manager_clone = window_manager.clone();
     let _exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
-        //let path = "../vms/CLOCK.EXE";
+        let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";
-        let path = "../Win16asm/hw.exe";
+        //let path = "../Win16asm/hw.exe";
         start_executable(path, &window_manager_clone);
     });
 
