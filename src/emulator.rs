@@ -593,9 +593,11 @@ impl<'a> Emulator<'a> {
                 self.write_mod_rm_16(mod_rm, result)
             }
             1 => {
-                // push word ...
+                // dec ...
                 let data = self.read_mod_rm_16(mod_rm)?;
-                self.push_value_16(data)
+                let result = data.wrapping_sub(1);
+                self.regs.handle_arithmetic_result_u16(result, false, false);
+                self.write_mod_rm_16(mod_rm, result)
             }
             3 => {
                 // call far ...
@@ -1129,7 +1131,7 @@ impl<'a> Emulator<'a> {
 
     fn log(&self, old_ip: u16) {
         debug!(
-            "[cpu] Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, FLAGS={:016b}, DS={:x}",
+            "[cpu] Currently at {:x}:{:x}, AX={:x}, BX={:x}, CX={:x}, DX={:x}, SP={:x}, BP={:x}, SI={:x}, FLAGS={:016b}, DS={:x}",
             self.regs.read_segment(Registers::REG_CS),
             old_ip,
             self.regs.read_gpr_16(Registers::REG_AX),
@@ -1138,6 +1140,7 @@ impl<'a> Emulator<'a> {
             self.regs.read_gpr_16(Registers::REG_DX),
             self.regs.read_gpr_16(Registers::REG_SP),
             self.regs.read_gpr_16(Registers::REG_BP),
+            self.regs.read_gpr_16(Registers::REG_SI),
             self.regs.flags(),
             self.regs.read_segment(Registers::REG_DS),
         );
