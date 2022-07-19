@@ -145,4 +145,11 @@ impl<'a> EmulatorAccessor<'a> {
             bottom: rect_bottom,
         })
     }
+
+    pub fn write_rect(&mut self, dst_ptr: u32, rect: &Rect) -> Result<(), EmulatorError> {
+        self.memory.write_16(dst_ptr, rect.left)?;
+        self.memory.write_16(dst_ptr + 2, rect.top)?;
+        self.memory.write_16(dst_ptr + 4, rect.right)?;
+        self.memory.write_16(dst_ptr + 6, rect.bottom)
+    }
 }

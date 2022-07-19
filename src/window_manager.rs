@@ -67,6 +67,8 @@ impl WindowManager {
             }
         };
 
+        println!("Create window: {}, {}, {}, {}", x, y, width, height);
+
         // TODO: handle default values for x,y,w,h
         let width = number_or_default(width);
         let height = number_or_default(height);
@@ -131,5 +133,17 @@ impl WindowManager {
                 bottom: window.height,
             })
             .unwrap_or_else(Rect::zero)
+    }
+
+    pub fn window_rect_of(&self, identifier: WindowIdentifier) -> Option<Rect> {
+        // TODO: what about nested windows?
+        self.windows
+            .get(&identifier)
+            .map(|window| Rect {
+                top: window.position.y,
+                left: window.position.x,
+                right: window.width,
+                bottom: window.height,
+            })
     }
 }

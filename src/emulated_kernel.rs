@@ -42,8 +42,6 @@ impl EmulatedKernel {
 
     #[api_function]
     fn init_task(&self, mut accessor: EmulatorAccessor) -> Result<ReturnValue, EmulatorError> {
-        debug!("[kernel] INIT TASK");
-
         let regs = accessor.regs_mut();
 
         // TODO: hardcoded to inittask rn
@@ -74,6 +72,13 @@ impl EmulatedKernel {
     #[api_function]
     fn wait_event(&self) -> Result<ReturnValue, EmulatorError> {
         Ok(ReturnValue::None)
+    }
+
+    #[api_function]
+    fn get_proc_address(&self, accessor: EmulatorAccessor, h_module: Handle, proc_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+        println!("GET PROC ADDRESS");
+        debug_print_null_terminated_string(&accessor, proc_name.0);
+        Ok(ReturnValue::U32(0))
     }
 
     #[api_function]
@@ -225,6 +230,7 @@ impl EmulatedKernel {
             23 => self.__api_lock_segment(emulator_accessor),
             24 => self.__api_unlock_segment(emulator_accessor),
             30 => self.__api_wait_event(emulator_accessor),
+            50 => self.__api_get_proc_address(emulator_accessor),
             51 => self.__api_make_proc_instance(emulator_accessor),
             57 => self.__api_get_profile_int(emulator_accessor),
             60 => self.__api_find_resource(emulator_accessor),

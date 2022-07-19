@@ -113,6 +113,7 @@ impl<'a> EmulatedGdi<'a> {
 
     #[api_function]
     fn muldiv(&self, a: u16, b: u16, c: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("MULDIV: {} {} {}", a, b, c);
         let mul = (a as u32) * (b as u32);
         // Add half the denominator for rounding
         let mul_with_half_denominator = mul.wrapping_add((c as u32) >> 1);

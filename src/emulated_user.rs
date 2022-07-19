@@ -119,7 +119,7 @@ impl<'a> EmulatedUser<'a> {
         mut accessor: EmulatorAccessor,
         class_name: Pointer,
         _window_name: HeapByteString,
-        _style: u32,
+        style: u32,
         x: u16,
         y: u16,
         width: u16,
@@ -130,7 +130,8 @@ impl<'a> EmulatedUser<'a> {
         _param: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         let class_name = accessor.static_string(class_name.0)?;
-        println!("  > class name: {:?}", class_name);
+
+        println!("CREATE WINDOW: {:?} {:x} {:x} {:x} {:x} {:x}", _window_name, style, x, y, width, height);
 
         // TODO: support atom lookup here (that's the case if segment == 0)
         if let Some(class) = self.window_classes.get(&class_name) {
@@ -139,6 +140,8 @@ impl<'a> EmulatedUser<'a> {
             let proc = user_window.proc;
             let mut objects = self.write_objects();
             if let Some(window_handle) = objects.user.register(UserObject::Window(user_window)) {
+                println!("window_handle = {:?}", window_handle);
+
                 if h_wnd_parent != Handle::null() {
                     if let Some(UserObject::Window(parent_window)) =
                         objects.user.get_mut(h_wnd_parent)
@@ -191,7 +194,8 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn show_window(&self, h_wnd: Handle, _cmd_show: u16) -> Result<ReturnValue, EmulatorError> {
+    fn show_window(&self, h_wnd: Handle, cmd_show: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("show window {:?} {:x}", h_wnd, cmd_show);
         let objects = self.write_objects();
         let success = match objects.user.get(h_wnd) {
             Some(UserObject::Window(_)) => {
@@ -322,13 +326,13 @@ impl<'a> EmulatedUser<'a> {
         _msg_filter_min: u16,
         _msg_filer_max: u16,
     ) -> Result<ReturnValue, EmulatorError> {
+        // TODO: support hwnd being null
         let message = match self.read_objects().user.get(h_wnd) {
             Some(UserObject::Window(user_window)) => user_window.message_queue.receive(),
             _ => None,
         };
 
         // TODO: implement filters
-        // TODO: support hwnd being null
         let return_value = if let Some(message) = message {
             // TODO: write message
 
@@ -338,7 +342,7 @@ impl<'a> EmulatedUser<'a> {
                 1
             }
         } else {
-            println!("error");
+            println!("error {:?}", h_wnd);
             0xffff
         };
         Ok(ReturnValue::U16(return_value))
@@ -419,6 +423,9 @@ impl<'a> EmulatedUser<'a> {
         } else if metric == 32 || metric == 33 {
             // TODO: this is just to let the system continue
             Ok(ReturnValue::U16(4))
+        } else if metric == 41 {
+            // As the Windows for Pen computing extension is not installed, return 0
+            Ok(ReturnValue::U16(0))
         } else {
             Ok(ReturnValue::U16(0))
         }
@@ -637,18 +644,7 @@ impl<'a> EmulatedUser<'a> {
             accessor
                 .memory_mut()
                 .write_8(paint_ptr.0.wrapping_add(2), paint.f_erase.into())?;
-            accessor
-                .memory_mut()
-                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.left)?;
-            accessor
-                .memory_mut()
-                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.top)?;
-            accessor
-                .memory_mut()
-                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.right)?;
-            accessor
-                .memory_mut()
-                .write_16(paint_ptr.0.wrapping_add(2), paint.rect.bottom)?;
+            accessor.write_rect(paint_ptr.0.wrapping_add(4), &paint.rect)?;
             Ok(ReturnValue::U16(paint.hdc.as_u16()))
         } else {
             Ok(ReturnValue::U16(0))
@@ -739,6 +735,32 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
+    fn kill_timer(&self, h_wnd: Handle, u_id_event: u16) -> Result<ReturnValue, EmulatorError> {
+        // TODO: this fakes success
+        Ok(ReturnValue::U16(1))
+    }
+
+    #[api_function]
+    fn get_window_rect(&self, mut accessor: EmulatorAccessor, h_wnd: Handle, rect_ptr: Pointer) -> Result<ReturnValue, EmulatorError> {
+        println!("GET WINDOW RECT {:?}", h_wnd);
+        if let Some(rect) = self.read_objects().read_window_manager().window_rect_of(WindowIdentifier {
+            process_id: self.process_id(),
+            window_handle: h_wnd
+        }) {
+            accessor.write_rect(rect_ptr.0, &rect)?;
+            Ok(ReturnValue::U16(1))
+        } else {
+            Ok(ReturnValue::U16(0))
+        }
+    }
+
+    #[api_function]
+    fn set_window_text(&self, h_wnd: Handle, text: HeapByteString) -> Result<ReturnValue, EmulatorError> {
+        println!("SET WINDOW TEXT: {:?}", text);
+        Ok(ReturnValue::U16(1))
+    }
+
+    #[api_function]
     fn message_box(
         &self,
         accessor: EmulatorAccessor,
@@ -756,6 +778,36 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(0))
     }
 
+    #[api_function]
+    fn get_menu(&self, h_wnd: Handle) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(Handle::null().as_u16()))
+    }
+
+    #[api_function]
+    fn get_system_menu(&self, h_wnd: Handle, revert: u16) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(Handle::null().as_u16()))
+    }
+
+    #[api_function]
+    fn check_menu_item(&self, h_menu: Handle, id_check_item: u16, u_check: u16) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(0xFFFF))
+    }
+
+    #[api_function]
+    fn enable_menu_item(&self, h_menu: Handle, id_enable_item: u16, u_enable: u16) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(0xFFFF))
+    }
+
+    #[api_function]
+    fn append_menu(&self, h_menu: Handle, flags: u16, id_new_item: u16, new_item_str: Pointer) -> Result<ReturnValue, EmulatorError> {
+        // TODO
+        Ok(ReturnValue::U16(1))
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
@@ -765,6 +817,9 @@ impl<'a> EmulatedUser<'a> {
             1 => self.__api_message_box(emulator_accessor),
             5 => self.__api_init_app(emulator_accessor),
             10 => self.__api_set_timer(emulator_accessor),
+            12 => self.__api_kill_timer(emulator_accessor),
+            32 => self.__api_get_window_rect(emulator_accessor),
+            37 => self.__api_set_window_text(emulator_accessor),
             39 => self.__api_internal_begin_paint(emulator_accessor),
             40 => self.__api_internal_end_paint(emulator_accessor),
             41 => self.__api_create_window(emulator_accessor),
@@ -777,10 +832,15 @@ impl<'a> EmulatedUser<'a> {
             107 => self.__api_def_window_proc(emulator_accessor),
             108 => self.__api_get_message(emulator_accessor),
             124 => self.__api_update_window(emulator_accessor),
+            154 => self.__api_check_menu_item(emulator_accessor),
+            155 => self.__api_enable_menu_item(emulator_accessor),
+            156 => self.__api_get_system_menu(emulator_accessor),
+            157 => self.__api_get_menu(emulator_accessor),
             173 => self.__api_load_cursor(emulator_accessor),
             176 => self.__api_load_string(emulator_accessor),
             179 => self.__api_get_system_metrics(emulator_accessor),
             180 => self.__api_internal_get_sys_color(emulator_accessor),
+            411 => self.__api_append_menu(emulator_accessor),
             420 => self.__api_wsprintf(emulator_accessor),
             0xffff => self.__api_button_window_proc(emulator_accessor),
             nr => {
