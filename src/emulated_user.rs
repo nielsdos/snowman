@@ -393,6 +393,9 @@ impl<'a> EmulatedUser<'a> {
         } else if metric == 30 || metric == 31 {
             // TODO: this is just to let the system continue
             Ok(ReturnValue::U16(16))
+        } else if metric == 30 || metric == 31 {
+            // TODO: this is just to let the system continue
+            Ok(ReturnValue::U16(4))
         } else {
             Ok(ReturnValue::U16(0))
         }
@@ -708,7 +711,8 @@ impl<'a> EmulatedUser<'a> {
             "SET TIMER {:?}, {:x}, {}, {:x}, {:x}",
             h_wnd, id_event, elapse, timer_proc_segment, timer_proc_offset
         );
-        Ok(ReturnValue::U16(0))
+        // TODO: this fakes success
+        Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
