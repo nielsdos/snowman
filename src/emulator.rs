@@ -882,11 +882,20 @@ impl<'a> Emulator<'a> {
         self.write_memory_to_segment::<8>(offset, self.regs.read_gpr_lo_8(Registers::REG_AL) as u16)
     }
 
-    fn cwd(&mut self) -> Result<(), EmulatorError> {
+    fn cbw(&mut self) -> Result<(), EmulatorError> {
         self.regs.write_gpr_16(
-            Registers::REG_DX,
-            self.regs.read_gpr_16(Registers::REG_AX) >> 15,
+            Registers::REG_AX,
+            self.regs.read_gpr_lo_8(Registers::REG_AL) as i8 as u16,
         );
+        Ok(())
+    }
+
+    fn cwd(&mut self) -> Result<(), EmulatorError> {
+        if self.regs.read_gpr_16(Registers::REG_AX) & 0x8000 != 0 {
+            self.regs.write_gpr_16(Registers::REG_DX, 0xFFFF);
+        } else {
+            self.regs.write_gpr_16(Registers::REG_DX, 0);
+        }
         Ok(())
     }
 
@@ -1063,6 +1072,7 @@ impl<'a> Emulator<'a> {
             0x8C => self.mov_segment(),
             0x8D => self.lea(),
             0x90 => self.nop(),
+            0x98 => self.cbw(),
             0x99 => self.cwd(),
             0x9A => self.call_far_with_32b_displacement(),
             0xA0 => self.mov_al_moffs8(),
