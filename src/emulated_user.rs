@@ -12,7 +12,7 @@ use crate::object_environment::{
 use crate::two_d::{Point, Rect};
 use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
-use crate::{debug, EmulatorError, ResourceTable};
+use crate::{debug, EmulatorError, Registers, ResourceTable};
 use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};

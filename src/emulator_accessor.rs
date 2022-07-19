@@ -68,6 +68,7 @@ impl<'a> EmulatorAccessor<'a> {
     pub fn pointer_argument(&self, nr: u32) -> Result<u32, EmulatorError> {
         let segment = self.word_argument(nr + 1)?;
         let offset = self.word_argument(nr)?;
+        //println!("{}, {:x}:{:x}", nr, segment, offset);
         let flat_address = ((segment as u32) << 4) + (offset as u32);
         Ok(flat_address)
     }

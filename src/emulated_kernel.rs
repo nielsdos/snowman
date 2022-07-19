@@ -189,6 +189,7 @@ impl EmulatedKernel {
         debug_print_null_terminated_string(&accessor, app_name.0);
         debug_print_null_terminated_string(&accessor, key_name.0);
         debug_print_null_terminated_string(&accessor, file_name.0);
+        debug_print_null_terminated_string(&accessor, default.0);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
         Ok(ReturnValue::U16(number_of_bytes_copied))
