@@ -17,6 +17,7 @@ use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
+use crate::message_queue::MessageQueue;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -43,11 +44,13 @@ pub struct EmulatedUser<'a> {
     resource_table: ResourceTable,
     window_classes: HashMap<ByteString<'a>, WindowClass<'a>>,
     objects: &'a RwLock<ObjectEnvironment<'a>>,
+    message_queue: &'a MessageQueue,
 }
 
 impl<'a> EmulatedUser<'a> {
     pub fn new(
         objects: &'a RwLock<ObjectEnvironment<'a>>,
+        message_queue: &'a MessageQueue,
         resource_table: ResourceTable,
         button_wnd_proc: SegmentAndOffset,
     ) -> Self {
@@ -67,6 +70,7 @@ impl<'a> EmulatedUser<'a> {
         );
         Self {
             user_atom_table: AtomTable::new(),
+            message_queue,
             resource_table,
             window_classes,
             objects,
@@ -326,15 +330,9 @@ impl<'a> EmulatedUser<'a> {
         _msg_filter_min: u16,
         _msg_filer_max: u16,
     ) -> Result<ReturnValue, EmulatorError> {
-        // TODO: support hwnd being null
-        let message = match self.read_objects().user.get(h_wnd) {
-            Some(UserObject::Window(user_window)) => user_window.message_queue.receive(),
-            _ => None,
-        };
-
         // TODO: implement filters
-        let return_value = if let Some(message) = message {
-            // TODO: write message
+        let return_value = if let Some(message) = self.message_queue.receive(h_wnd) {
+            // TODO: write message to memory
 
             if message.message == MessageType::Quit {
                 0

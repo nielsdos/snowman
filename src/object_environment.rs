@@ -11,7 +11,6 @@ pub struct UserWindow {
     pub proc: SegmentAndOffset,
     pub parent_dc: bool,
     pub parent_handle: Handle,
-    pub message_queue: MessageQueue,
     pub children: Vec<Handle>,
 }
 
@@ -46,7 +45,6 @@ impl UserWindow {
     pub fn new(proc: SegmentAndOffset, parent_dc: bool, parent_handle: Handle) -> Self {
         Self {
             proc,
-            message_queue: MessageQueue::new(),
             children: Vec::new(),
             parent_dc,
             parent_handle,

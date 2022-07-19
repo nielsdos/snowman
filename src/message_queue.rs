@@ -27,7 +27,20 @@ impl MessageQueue {
         self.tx.send(msg).is_ok()
     }
 
-    pub fn receive(&self) -> Option<WindowMessage> {
-        self.rx.recv().ok()
+    pub fn receive(&self, h_wnd: Handle) -> Option<WindowMessage> {
+        loop {
+            return if let Ok(message) = self.rx.recv() {
+                // h_wnd acts as a filter, if the handle does not match, the message must be discarded
+                // Null handle means that no filtering should take place.
+                // Note: thread messages did not seem to exist back then...
+                if h_wnd != Handle::null() && message.h_wnd != h_wnd {
+                    continue;
+                }
+
+                Some(message)
+            } else {
+                None
+            }
+        }
     }
 }

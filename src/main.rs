@@ -19,6 +19,7 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use sdl2::keyboard::Keycode::Hash;
 use crate::byte_string::{ByteString, HeapByteString};
+use crate::message_queue::MessageQueue;
 
 #[macro_use]
 extern crate num_derive;
@@ -703,9 +704,10 @@ fn process_file_ne(
         })?;
 
     // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
+    let message_queue = MessageQueue::new();
     let objects = RwLock::new(ObjectEnvironment::new(window_manager));
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new(&objects, resource_table, button_wnd_proc);
+    let emulated_user = EmulatedUser::new(&objects, &message_queue, resource_table, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(
