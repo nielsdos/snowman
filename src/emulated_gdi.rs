@@ -127,12 +127,19 @@ impl<'a> EmulatedGdi<'a> {
         Ok(ReturnValue::U16(result))
     }
 
+    #[api_function]
+    fn set_bk_mode(&self, hdc: Handle, mode: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("SET BK MODE: {:?} {}", hdc, mode);
+        Ok(ReturnValue::U16(1)) // TODO: old bg mode
+    }
+
     pub fn syscall(
         &self,
         nr: u16,
         emulator_accessor: EmulatorAccessor,
     ) -> Result<ReturnValue, EmulatorError> {
         match nr {
+            2 => self.__api_set_bk_mode(emulator_accessor),
             53 => self.__api_create_dc(emulator_accessor),
             61 => self.__api_create_pen(emulator_accessor),
             66 => self.__api_create_solid_brush(emulator_accessor),

@@ -2,16 +2,16 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[derive(Copy, Clone)]
 pub struct Rect {
-    pub left: u16,
-    pub top: u16,
-    pub right: u16,
-    pub bottom: u16,
+    pub left: i16,
+    pub top: i16,
+    pub right: i16,
+    pub bottom: i16,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {
-    pub x: u16,
-    pub y: u16,
+    pub x: i16,
+    pub y: i16,
 }
 
 impl Point {
@@ -66,7 +66,7 @@ impl Rect {
         }
     }
 
-    pub fn shrink(&self, amount: u16) -> Self {
+    pub fn shrink(&self, amount: i16) -> Self {
         // TODO: make sure it stays valid
         Rect {
             left: self.left.saturating_add(amount),

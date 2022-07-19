@@ -34,7 +34,7 @@ impl Memory {
         SegmentAndOffset { segment, offset }
     }
 
-    pub fn write_16(&mut self, address: u32, data: u16) -> Result<(), EmulatorError> {
+    pub fn write_u16(&mut self, address: u32, data: u16) -> Result<(), EmulatorError> {
         if ((address + 1) as usize) < MEMORY_SIZE {
             self.bytes[address as usize] = data as u8;
             self.bytes[address as usize + 1] = (data >> 8) as u8;
@@ -42,6 +42,10 @@ impl Memory {
         } else {
             Err(EmulatorError::OutOfBounds)
         }
+    }
+
+    pub fn write_i16(&mut self, address: u32, data: i16) -> Result<(), EmulatorError> {
+        self.write_u16(address, data as u16)
     }
 
     pub fn write_32(&mut self, address: u32, data: u32) -> Result<(), EmulatorError> {
@@ -68,15 +72,15 @@ impl Memory {
         if N == 8 {
             self.write_8(address, data as u8)
         } else if N == 16 {
-            self.write_16(address, data)
+            self.write_u16(address, data)
         } else {
             unreachable!()
         }
     }
 
     pub fn flat_pointer_read(&self, offset: u32) -> Result<u32, EmulatorError> {
-        let segment = self.read_16(offset + 2)?;
-        let offset = self.read_16(offset)?;
+        let segment = self.read_u16(offset + 2)?;
+        let offset = self.read_u16(offset)?;
         Ok(((segment as u32) << 4) + (offset as u32))
     }
 
@@ -85,8 +89,12 @@ impl Memory {
             .ok_or(EmulatorError::OutOfBounds)
     }
 
-    pub fn read_16(&self, address: u32) -> Result<u16, EmulatorError> {
+    pub fn read_u16(&self, address: u32) -> Result<u16, EmulatorError> {
         u16_from_array(self.bytes.deref(), address as usize).ok_or(EmulatorError::OutOfBounds)
+    }
+
+    pub fn read_i16(&self, address: u32) -> Result<i16, EmulatorError> {
+        self.read_u16(address).map(|data| data as i16)
     }
 
     pub fn read_8(&self, address: u32) -> Result<u8, EmulatorError> {
@@ -100,7 +108,7 @@ impl Memory {
         if N == 8 {
             self.read_8(address).map(|data| data as u16)
         } else if N == 16 {
-            self.read_16(address)
+            self.read_u16(address)
         } else {
             unreachable!()
         }

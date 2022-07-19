@@ -13,6 +13,10 @@ impl<'a> EmulatorAccessor<'a> {
         Self { memory, regs }
     }
 
+    pub fn regs(&self) -> &Registers {
+        self.regs
+    }
+
     pub fn regs_mut(&mut self) -> &mut Registers {
         self.regs
     }
@@ -27,12 +31,12 @@ impl<'a> EmulatorAccessor<'a> {
 
     pub fn word_argument(&self, nr: u32) -> Result<u16, EmulatorError> {
         let address = self.regs.flat_sp() + 4 + nr * 2;
-        self.memory.read_16(address)
+        self.memory.read_u16(address)
     }
 
     pub fn push_16(&mut self, value: u16) -> Result<(), EmulatorError> {
         self.regs.dec_sp(2);
-        self.memory.write_16(
+        self.memory.write_u16(
             self.regs.flat_reg(Registers::REG_SS, Registers::REG_SP),
             value,
         )
@@ -134,10 +138,10 @@ impl<'a> EmulatorAccessor<'a> {
     }
 
     pub fn read_rect(&self, src_ptr: u32) -> Result<Rect, EmulatorError> {
-        let rect_left = self.memory.read_16(src_ptr)?;
-        let rect_top = self.memory.read_16(src_ptr + 2)?;
-        let rect_right = self.memory.read_16(src_ptr + 4)?;
-        let rect_bottom = self.memory.read_16(src_ptr + 6)?;
+        let rect_left = self.memory.read_i16(src_ptr)?;
+        let rect_top = self.memory.read_i16(src_ptr + 2)?;
+        let rect_right = self.memory.read_i16(src_ptr + 4)?;
+        let rect_bottom = self.memory.read_i16(src_ptr + 6)?;
         Ok(Rect {
             left: rect_left,
             top: rect_top,
@@ -147,9 +151,9 @@ impl<'a> EmulatorAccessor<'a> {
     }
 
     pub fn write_rect(&mut self, dst_ptr: u32, rect: &Rect) -> Result<(), EmulatorError> {
-        self.memory.write_16(dst_ptr, rect.left)?;
-        self.memory.write_16(dst_ptr + 2, rect.top)?;
-        self.memory.write_16(dst_ptr + 4, rect.right)?;
-        self.memory.write_16(dst_ptr + 6, rect.bottom)
+        self.memory.write_i16(dst_ptr, rect.left)?;
+        self.memory.write_i16(dst_ptr + 2, rect.top)?;
+        self.memory.write_i16(dst_ptr + 4, rect.right)?;
+        self.memory.write_i16(dst_ptr + 6, rect.bottom)
     }
 }

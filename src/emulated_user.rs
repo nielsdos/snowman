@@ -124,10 +124,10 @@ impl<'a> EmulatedUser<'a> {
         class_name: Pointer,
         _window_name: HeapByteString,
         style: u32,
-        x: u16,
-        y: u16,
-        width: u16,
-        height: u16,
+        x: i16,
+        y: i16,
+        width: i16,
+        height: i16,
         h_wnd_parent: Handle,
         _h_menu: Handle,
         _h_instance: Handle,
@@ -284,15 +284,15 @@ impl<'a> EmulatedUser<'a> {
         accessor: EmulatorAccessor,
         wnd_class_ptr: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
-        let wnd_class_style = accessor.memory().read_16(wnd_class_ptr.0)?;
-        let wnd_class_proc_offset = accessor.memory().read_16(wnd_class_ptr.0 + 2)?;
-        let wnd_class_proc_segment = accessor.memory().read_16(wnd_class_ptr.0 + 4)?;
-        let wnd_class_cls_extra = accessor.memory().read_16(wnd_class_ptr.0 + 6)?;
-        let wnd_class_wnd_extra = accessor.memory().read_16(wnd_class_ptr.0 + 8)?;
-        let _wnd_class_h_instance = accessor.memory().read_16(wnd_class_ptr.0 + 10)?;
-        let wnd_class_h_icon = accessor.memory().read_16(wnd_class_ptr.0 + 12)?;
-        let wnd_class_h_cursor = accessor.memory().read_16(wnd_class_ptr.0 + 14)?;
-        let wnd_class_h_background = accessor.memory().read_16(wnd_class_ptr.0 + 16)?;
+        let wnd_class_style = accessor.memory().read_u16(wnd_class_ptr.0)?;
+        let wnd_class_proc_offset = accessor.memory().read_u16(wnd_class_ptr.0 + 2)?;
+        let wnd_class_proc_segment = accessor.memory().read_u16(wnd_class_ptr.0 + 4)?;
+        let wnd_class_cls_extra = accessor.memory().read_u16(wnd_class_ptr.0 + 6)?;
+        let wnd_class_wnd_extra = accessor.memory().read_u16(wnd_class_ptr.0 + 8)?;
+        let _wnd_class_h_instance = accessor.memory().read_u16(wnd_class_ptr.0 + 10)?;
+        let wnd_class_h_icon = accessor.memory().read_u16(wnd_class_ptr.0 + 12)?;
+        let wnd_class_h_cursor = accessor.memory().read_u16(wnd_class_ptr.0 + 14)?;
+        let wnd_class_h_background = accessor.memory().read_u16(wnd_class_ptr.0 + 16)?;
         let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr.0 + 18)?;
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr.0 + 22)?;
 
@@ -364,13 +364,13 @@ impl<'a> EmulatedUser<'a> {
         // TODO: implement min & max filters
         let return_value = if let Some(message) = self.message_queue.receive(h_wnd) {
             let message_type = message.message;
-            accessor.memory_mut().write_16(msg.0, message.h_wnd.as_u16())?;
-            accessor.memory_mut().write_16(msg.0 + 2, message_type.into())?;
-            accessor.memory_mut().write_16(msg.0 + 4, message.w_param)?;
+            accessor.memory_mut().write_u16(msg.0, message.h_wnd.as_u16())?;
+            accessor.memory_mut().write_u16(msg.0 + 2, message_type.into())?;
+            accessor.memory_mut().write_u16(msg.0 + 4, message.w_param)?;
             accessor.memory_mut().write_32(msg.0 + 6, message.l_param)?;
             accessor.memory_mut().write_32(msg.0 + 10, message.time)?;
-            accessor.memory_mut().write_16(msg.0 + 14, message.point.x)?;
-            accessor.memory_mut().write_16(msg.0 + 16, message.point.y)?;
+            accessor.memory_mut().write_i16(msg.0 + 14, message.point.x)?;
+            accessor.memory_mut().write_i16(msg.0 + 16, message.point.y)?;
 
             if message_type == MessageType::Quit {
                 0
@@ -390,9 +390,9 @@ impl<'a> EmulatedUser<'a> {
 
     #[api_function]
     fn dispatch_message(&self, mut accessor: EmulatorAccessor, msg: Pointer) -> Result<ReturnValue, EmulatorError> {
-        let h_wnd: Handle = accessor.memory().read_16(msg.0)?.into();
-        let message_type = accessor.memory().read_16(msg.0 + 2)?;
-        let w_param = accessor.memory().read_16(msg.0 + 4)?;
+        let h_wnd: Handle = accessor.memory().read_u16(msg.0)?.into();
+        let message_type = accessor.memory().read_u16(msg.0 + 2)?;
+        let w_param = accessor.memory().read_u16(msg.0 + 4)?;
         let l_param = accessor.memory().read_32(msg.0 + 6)?;
 
         match self.read_objects().user.get(h_wnd) {
@@ -700,7 +700,7 @@ impl<'a> EmulatedUser<'a> {
         if let Some(paint) = self.begin_paint(h_wnd) {
             accessor
                 .memory_mut()
-                .write_16(paint_ptr.0, paint.hdc.as_u16())?;
+                .write_u16(paint_ptr.0, paint.hdc.as_u16())?;
             accessor
                 .memory_mut()
                 .write_8(paint_ptr.0.wrapping_add(2), paint.f_erase.into())?;
@@ -739,7 +739,7 @@ impl<'a> EmulatedUser<'a> {
         paint: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         // TODO: this should probably cause a flip of the front and back bitmap for the given window
-        let handle = accessor.memory().read_16(paint.0)?;
+        let handle = accessor.memory().read_u16(paint.0)?;
         Ok(ReturnValue::U16(self.end_paint(_h_wnd, handle.into())))
     }
 

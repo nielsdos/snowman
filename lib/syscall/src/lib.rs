@@ -9,6 +9,7 @@ use quote::ToTokens;
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 enum InternalType {
+    I16,
     U16,
     Handle,
     U32,
@@ -19,7 +20,7 @@ enum InternalType {
 
 fn get_internal_type_size(ty: InternalType) -> u32 {
     match ty {
-        InternalType::U16 | InternalType::Handle => 2,
+        InternalType::U16 | InternalType::I16 | InternalType::Handle => 2,
         InternalType::U32 | InternalType::Pointer | InternalType::HeapByteString => 4,
         InternalType::Ignored => 0,
     }
@@ -28,8 +29,9 @@ fn get_internal_type_size(ty: InternalType) -> u32 {
 fn get_internal_type_from_str(str: &str) -> InternalType {
     match str {
         "Handle" => InternalType::Handle,
-        "u16" | "Result < u16, EmulatorError >" => InternalType::U16,
-        "u32" | "Result < u32, EmulatorError >" => InternalType::U32,
+        "i16" => InternalType::I16,
+        "u16" => InternalType::U16,
+        "u32" => InternalType::U32,
         "Pointer" => InternalType::Pointer,
         "HeapByteString" => InternalType::HeapByteString,
         "EmulatorAccessor" => InternalType::Ignored,
@@ -78,6 +80,9 @@ pub fn api_function(_attr: TokenStream, input: TokenStream) -> TokenStream {
                         },
                         InternalType::U16 => quote! {
                             let #identifier = accessor.word_argument(#argument_offset)?;
+                        },
+                        InternalType::I16 => quote! {
+                            let #identifier = accessor.word_argument(#argument_offset)? as i16;
                         },
                         InternalType::U32 => quote! {
                             let #identifier = accessor.dword_argument(#argument_offset)?;

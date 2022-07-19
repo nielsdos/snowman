@@ -26,13 +26,12 @@ pub struct Bitmap {
     // TODO: should probably not use a vec?
     pixels: Vec<Color>,
     translation: Point,
-    width: u16,
-    height: u16,
+    width: i16,
+    height: i16,
 }
 
 impl<'a> BitmapView<'a> {
     pub fn new(bitmap: &'a mut Bitmap, translation: Point) -> Self {
-        println!("Translated bitmap {:?}", translation);
         bitmap.translation += translation;
         Self {
             bitmap,
@@ -62,7 +61,7 @@ impl<'a> Drop for BitmapView<'a> {
 }
 
 impl Bitmap {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: i16, height: i16) -> Self {
         Self {
             pixels: vec![Color(255, 255, 255); (width as usize) * (height as usize)],
             translation: Point::origin(),
@@ -71,12 +70,12 @@ impl Bitmap {
         }
     }
 
-    fn clip_x(&self, x: u16) -> u16 {
+    fn clip_x(&self, x: i16) -> i16 {
         // TODO: edge cases?
         x.clamp(0, self.width.saturating_sub(self.translation.x))
     }
 
-    fn clip_y(&self, y: u16) -> u16 {
+    fn clip_y(&self, y: i16) -> i16 {
         // TODO: edge cases?
         y.clamp(0, self.height.saturating_sub(self.translation.y))
     }
@@ -91,40 +90,40 @@ impl Bitmap {
     }
 
     #[inline]
-    pub fn width(&self) -> u16 {
+    pub fn width(&self) -> i16 {
         self.width
     }
 
     #[inline]
-    pub fn height(&self) -> u16 {
+    pub fn height(&self) -> i16 {
         self.height
     }
 
-    fn index_for(&self, x: u16, y: u16) -> usize {
+    fn index_for(&self, x: i16, y: i16) -> usize {
         let x = x.wrapping_add(self.translation.x);
         let y = y.wrapping_add(self.translation.y);
         (y as usize) * (self.width as usize) + (x as usize)
     }
 
     #[inline]
-    pub fn pixel_at_no_checks(&self, x: u16, y: u16) -> Color {
+    pub fn pixel_at_no_checks(&self, x: i16, y: i16) -> Color {
         self.pixels[self.index_for(x, y)]
     }
 
-    fn draw_horizontal_line_unclipped(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
+    fn draw_horizontal_line_unclipped(&mut self, x_start: i16, y: i16, x_to: i16, color: Color) {
         let start_index = self.index_for(x_start, y);
         let end_index = self.index_for(x_to, y);
         self.pixels[start_index..end_index].fill(color);
     }
 
-    fn draw_vertical_line_unclipped(&mut self, x: u16, y_start: u16, y_to: u16, color: Color) {
+    fn draw_vertical_line_unclipped(&mut self, x: i16, y_start: i16, y_to: i16, color: Color) {
         for y in y_start..y_to {
             let index = self.index_for(x, y);
             self.pixels[index] = color;
         }
     }
 
-    pub fn draw_vertical_line(&mut self, x: u16, y_start: u16, y_to: u16, color: Color) {
+    pub fn draw_vertical_line(&mut self, x: i16, y_start: i16, y_to: i16, color: Color) {
         self.draw_vertical_line_unclipped(
             self.clip_x(x),
             self.clip_y(y_start),
@@ -133,7 +132,7 @@ impl Bitmap {
         )
     }
 
-    pub fn draw_horizontal_line(&mut self, x_start: u16, y: u16, x_to: u16, color: Color) {
+    pub fn draw_horizontal_line(&mut self, x_start: i16, y: i16, x_to: i16, color: Color) {
         self.draw_horizontal_line_unclipped(
             self.clip_x(x_start),
             self.clip_y(y),

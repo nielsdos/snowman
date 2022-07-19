@@ -203,6 +203,12 @@ impl EmulatedKernel {
         debug_print_null_terminated_string(&accessor, default.0);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
+        // TODO: hack to force a certain option
+        if key_name.0 == 0x1258 {
+            for (i, c) in b"1,0,0,0,0,0".iter().enumerate() {
+                accessor.memory_mut().write_8(returned_string.0 + i as u32, *c)?;
+            }
+        }
         Ok(ReturnValue::U16(number_of_bytes_copied))
     }
 

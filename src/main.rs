@@ -59,9 +59,9 @@ fn main() -> Result<(), String> {
     let window_manager_clone = window_manager.clone();
     let _exe = thread::spawn(move || {
         //let path = "../vms/WINVER.EXE";
-        let path = "../vms/CLOCK.EXE";
+        //let path = "../vms/CLOCK.EXE";
         //let path = "../vms/GENERIC.EXE";
-        //let path = "../Win16asm/hw.exe";
+        let path = "../Win16asm/hw.exe";
         start_executable(path, &window_manager_clone);
     });
 
@@ -454,8 +454,8 @@ fn perform_relocations(
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
                         if relocation.source_type == 3 {
-                            memory.write_16(flat_address, segment_and_offset.offset)?;
-                            memory.write_16(flat_address + 2, segment_and_offset.segment)?;
+                            memory.write_u16(flat_address, segment_and_offset.offset)?;
+                            memory.write_u16(flat_address + 2, segment_and_offset.segment)?;
                         } else {
                             // TODO
                             println!("other source type {}", relocation.source_type);
@@ -492,9 +492,9 @@ fn perform_relocations(
                         let flat_address = flat_address_offset + offset as u32;
 
                         if relocation.source_type == 2 {
-                            memory.write_16(flat_address, segment)?;
+                            memory.write_u16(flat_address, segment)?;
                         } else if relocation.source_type == 5 {
-                            memory.write_16(flat_address, offset_within_segment)?;
+                            memory.write_u16(flat_address, offset_within_segment)?;
                         } else {
                             // TODO: invalid?
                         }

@@ -46,7 +46,7 @@ impl<'a> Emulator<'a> {
 
     fn push_value_16(&mut self, data: u16) -> Result<(), EmulatorError> {
         self.regs.dec_sp(2);
-        self.memory.write_16(
+        self.memory.write_u16(
             self.regs.flat_reg(Registers::REG_SS, Registers::REG_SP),
             data,
         )?;
@@ -56,7 +56,7 @@ impl<'a> Emulator<'a> {
     fn pop_value_16(&mut self) -> Result<u16, EmulatorError> {
         let data = self
             .memory
-            .read_16(self.regs.flat_reg(Registers::REG_SS, Registers::REG_SP))?;
+            .read_u16(self.regs.flat_reg(Registers::REG_SS, Registers::REG_SP))?;
         self.regs.inc_sp(2);
         Ok(data)
     }
@@ -105,7 +105,7 @@ impl<'a> Emulator<'a> {
     }
 
     pub fn read_ip_u16(&mut self) -> Result<u16, EmulatorError> {
-        let byte = self.memory.read_16(self.regs.flat_ip())?;
+        let byte = self.memory.read_u16(self.regs.flat_ip())?;
         self.regs.ip += 2;
         Ok(byte)
     }
@@ -381,10 +381,29 @@ impl<'a> Emulator<'a> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         match mod_rm.mod_rm_byte.register_destination() {
             0 => {
-                let data = self.read_mod_rm_16(mod_rm)?;
+                let data = self.read_mod_rm::<N>(mod_rm)?;
                 let imm = self.read_ip_u_generic::<N>()?;
                 self.regs
                     .handle_bitwise_result_u_generic::<N>(false, data & imm);
+            }
+            3 => {
+                let data = self.read_mod_rm::<N>(mod_rm)?;
+                let carry = data != 0;
+                let result = (!data).wrapping_add(1);
+                self.write_mod_rm::<N>(mod_rm, result)?;
+                self.regs.handle_arithmetic_result_u_generic::<N>(result, carry, true);
+            }
+            5 => {
+                // imul, r/m
+                if N == 16 {
+                    let data = self.read_mod_rm_16(mod_rm)? as u32;
+                    let result = (self.regs.read_gpr_16(Registers::REG_AX) as u32) * data;
+                    self.regs.write_gpr_16(Registers::REG_AX, result as u16);
+                    self.regs.write_gpr_16(Registers::REG_DX, (result >> 16) as u16);
+                    self.regs.handle_imul_result_u16(result > 0xFFFF);
+                } else {
+                    todo!();
+                }
             }
             7 => {
                 if N == 16 {
@@ -566,7 +585,7 @@ impl<'a> Emulator<'a> {
                 }
                 ReturnValue::DelayedU16(value) => {
                     self.memory
-                        .write_16(self.regs.flat_sp().wrapping_add(14), value)?;
+                        .write_u16(self.regs.flat_sp().wrapping_add(14), value)?;
                 }
                 ReturnValue::None => {}
             }
@@ -624,6 +643,23 @@ impl<'a> Emulator<'a> {
                 // push ...
                 let data = self.read_mod_rm_16(mod_rm)?;
                 self.push_value_16(data)
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn op_0xd1(&mut self) -> Result<(), EmulatorError> {
+        let mod_rm = self.read_ip_mod_rm::<16>()?;
+        println!("{:?} {}", mod_rm, mod_rm.mod_rm_byte.register_destination());
+        match mod_rm.mod_rm_byte.register_destination() {
+            7 => {
+                // sar rm16, 1
+                let data = self.read_mod_rm_16(mod_rm)? as i16;
+                let carry = (data & 1) == 1;
+                let result = data >> 1;
+                let result = result as u16;
+                self.regs.handle_bitwise_result_u16(carry, result);
+                self.write_mod_rm_16(mod_rm, result)
             }
             _ => unreachable!(),
         }
@@ -1133,6 +1169,7 @@ impl<'a> Emulator<'a> {
             0xCA => self.ret_far_with_pop(),
             0xCB => self.ret_far_without_pop(),
             0xCD => self.int(),
+            0xD1 => self.op_0xd1(),
             0xE9 => self.jmp_rel16(),
             0xEB => self.jmp_rel8(),
             0xE8 => self.call_near_rel16(),
@@ -1167,8 +1204,8 @@ impl<'a> Emulator<'a> {
 
     pub fn step(&mut self) {
         let old_ip = self.regs.ip;
+        self.log(old_ip);
         if let Err(error) = self.execute_opcode() {
-            self.log(old_ip);
             panic!("TODO: error handling for {:?}", error);
         }
     }

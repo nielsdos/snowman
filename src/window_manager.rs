@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 struct Window {
     position: Point,
-    width: u16,
-    height: u16,
+    width: i16,
+    height: i16,
     front_bitmap: Option<Bitmap>,
 }
 
@@ -52,22 +52,20 @@ impl WindowManager {
     pub fn create_window(
         &mut self,
         identifier: WindowIdentifier,
-        x: u16,
-        y: u16,
-        width: u16,
-        height: u16,
+        x: i16,
+        y: i16,
+        width: i16,
+        height: i16,
         use_parent_bitmap: bool,
     ) {
         // TODO: set sane limits for arguments?
-        let number_or_default = |number: u16| {
-            if number == 0x8000 {
+        let number_or_default = |number: i16| {
+            if number == -1 {
                 200
             } else {
                 number
             }
         };
-
-        println!("Create window: {}, {}, {}, {}", x, y, width, height);
 
         // TODO: handle default values for x,y,w,h
         let width = number_or_default(width);
