@@ -49,7 +49,8 @@ pub fn u32_from_array<const N: usize>(bytes: &[u8; N], offset: usize) -> Option<
 }
 
 pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut address: u32) {
-    print!("  > ");
+    print!("  > {:x} -> \"", address);
+    let mut length = 0;
     loop {
         let data = accessor.memory().read_8(address).unwrap_or(0);
         if data == 0 {
@@ -57,6 +58,7 @@ pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut addre
         }
         print!("{}", data as char);
         address += 1;
+        length += 1;
     }
-    println!();
+    println!("\" [length {}]", length);
 }
