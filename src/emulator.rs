@@ -864,8 +864,8 @@ impl<'a> Emulator<'a> {
     }
 
     fn mov_al_moffs8(&mut self) -> Result<(), EmulatorError> {
-        let offset = self.read_ip_u8()?;
-        let data = self.read_memory_from_segment::<8>(offset as u16)?;
+        let offset = self.read_ip_u16()?;
+        let data = self.read_memory_from_segment::<8>(offset)?;
         self.regs.write_gpr_lo_8(Registers::REG_AL, data as u8);
         Ok(())
     }
