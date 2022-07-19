@@ -931,6 +931,13 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(1))
     }
 
+    #[api_function]
+    fn offset_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, dx: i16, dy: i16) -> Result<ReturnValue, EmulatorError> {
+        let rect = accessor.read_rect(rect_ptr.0)?.offset(dx, dy);
+        accessor.write_rect(rect_ptr.0, &rect)?;
+        Ok(ReturnValue::U16(1))
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
@@ -952,6 +959,7 @@ impl<'a> EmulatedUser<'a> {
             66 => self.__api_internal_get_dc(emulator_accessor),
             68 => self.__api_internal_release_dc(emulator_accessor),
             69 => self.__api_set_cursor(emulator_accessor),
+            77 => self.__api_offset_rect(emulator_accessor),
             78 => self.__api_inflate_rect(emulator_accessor),
             81 => self.__api_fill_rect(emulator_accessor),
             87 => self.__api_dialog_box(emulator_accessor),

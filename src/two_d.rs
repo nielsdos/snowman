@@ -83,4 +83,13 @@ impl Rect {
             right: self.right.wrapping_add(dx),
         }
     }
+
+    pub fn offset(&self, dx: i16, dy: i16) -> Self {
+        Rect {
+            left: self.left.wrapping_add(dx),
+            top: self.top.wrapping_add(dy),
+            bottom: self.bottom.wrapping_add(dy),
+            right: self.right.wrapping_add(dx),
+        }
+    }
 }
