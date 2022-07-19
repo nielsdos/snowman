@@ -10,6 +10,7 @@ use crate::util::debug_print_null_terminated_string;
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError};
 use std::collections::HashMap;
+use std::process::id;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use num_traits::FromPrimitive;
 use syscall::api_function;
@@ -602,13 +603,29 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(1))
     }
 
+    #[api_function]
+    fn set_timer(&self, h_wnd: Handle, id_event: u16, elapse: u16, timer_proc_segment: u16, timer_proc_offset: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("SET TIMER {:?}, {:x}, {}, {:x}, {:x}", h_wnd, id_event, elapse, timer_proc_segment, timer_proc_offset);
+        Ok(ReturnValue::U16(0))
+    }
+
+    #[api_function]
+    fn message_box(&self, accessor: EmulatorAccessor, h_wnd: Handle, text: Pointer, caption: Pointer, _type: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("MESSAGE BOX {:?}, {:x}, {:x}, {:x}", h_wnd, text.0, caption.0, _type);
+        debug_print_null_terminated_string(&accessor, text.0);
+        debug_print_null_terminated_string(&accessor, caption.0);
+        Ok(ReturnValue::U16(0))
+    }
+
     pub fn syscall(
         &mut self,
         nr: u16,
         emulator_accessor: EmulatorAccessor,
     ) -> Result<ReturnValue, EmulatorError> {
         match nr {
+            1 => self.__api_message_box(emulator_accessor),
             5 => self.__api_init_app(emulator_accessor),
+            10 => self.__api_set_timer(emulator_accessor),
             39 => self.__api_internal_begin_paint(emulator_accessor),
             40 => self.__api_internal_end_paint(emulator_accessor),
             41 => self.__api_create_window(emulator_accessor),
