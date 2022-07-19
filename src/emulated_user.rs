@@ -6,6 +6,7 @@ use crate::constants::{ClassStyles, MessageType, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
+use crate::message_queue::MessageQueue;
 use crate::object_environment::{
     DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow,
 };
@@ -17,7 +18,6 @@ use num_traits::FromPrimitive;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
-use crate::message_queue::MessageQueue;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -135,7 +135,10 @@ impl<'a> EmulatedUser<'a> {
     ) -> Result<ReturnValue, EmulatorError> {
         let class_name = accessor.static_string(class_name.0)?;
 
-        println!("CREATE WINDOW: {:?} {:x} {:x} {:x} {:x} {:x}", _window_name, style, x, y, width, height);
+        println!(
+            "CREATE WINDOW: {:?} {:x} {:x} {:x} {:x} {:x}",
+            _window_name, style, x, y, width, height
+        );
 
         // TODO: support atom lookup here (that's the case if segment == 0)
         if let Some(class) = self.window_classes.get(&class_name) {
@@ -370,7 +373,9 @@ impl<'a> EmulatedUser<'a> {
                 (buffer_max as usize).min(length)
             };
 
-            accessor.memory_mut().copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
+            accessor
+                .memory_mut()
+                .copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
 
             debug_print_null_terminated_string(&accessor, buffer.0);
             // String lengths from the resource table will fit in 16 bits, because their length
@@ -733,18 +738,27 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn kill_timer(&self, h_wnd: Handle, u_id_event: u16) -> Result<ReturnValue, EmulatorError> {
+    fn kill_timer(&self, _h_wnd: Handle, _u_id_event: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO: this fakes success
         Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
-    fn get_window_rect(&self, mut accessor: EmulatorAccessor, h_wnd: Handle, rect_ptr: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn get_window_rect(
+        &self,
+        mut accessor: EmulatorAccessor,
+        h_wnd: Handle,
+        rect_ptr: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         println!("GET WINDOW RECT {:?}", h_wnd);
-        if let Some(rect) = self.read_objects().read_window_manager().window_rect_of(WindowIdentifier {
-            process_id: self.process_id(),
-            window_handle: h_wnd
-        }) {
+        if let Some(rect) =
+            self.read_objects()
+                .read_window_manager()
+                .window_rect_of(WindowIdentifier {
+                    process_id: self.process_id(),
+                    window_handle: h_wnd,
+                })
+        {
             accessor.write_rect(rect_ptr.0, &rect)?;
             Ok(ReturnValue::U16(1))
         } else {
@@ -753,7 +767,11 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn set_window_text(&self, h_wnd: Handle, text: HeapByteString) -> Result<ReturnValue, EmulatorError> {
+    fn set_window_text(
+        &self,
+        _h_wnd: Handle,
+        text: HeapByteString,
+    ) -> Result<ReturnValue, EmulatorError> {
         println!("SET WINDOW TEXT: {:?}", text);
         Ok(ReturnValue::U16(1))
     }
@@ -777,31 +795,47 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn get_menu(&self, h_wnd: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn get_menu(&self, _h_wnd: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(Handle::null().as_u16()))
     }
 
     #[api_function]
-    fn get_system_menu(&self, h_wnd: Handle, revert: u16) -> Result<ReturnValue, EmulatorError> {
+    fn get_system_menu(&self, _h_wnd: Handle, _revert: u16) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(Handle::null().as_u16()))
     }
 
     #[api_function]
-    fn check_menu_item(&self, h_menu: Handle, id_check_item: u16, u_check: u16) -> Result<ReturnValue, EmulatorError> {
+    fn check_menu_item(
+        &self,
+        _h_menu: Handle,
+        _id_check_item: u16,
+        _u_check: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(0xFFFF))
     }
 
     #[api_function]
-    fn enable_menu_item(&self, h_menu: Handle, id_enable_item: u16, u_enable: u16) -> Result<ReturnValue, EmulatorError> {
+    fn enable_menu_item(
+        &self,
+        _h_menu: Handle,
+        _id_enable_item: u16,
+        _u_enable: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(0xFFFF))
     }
 
     #[api_function]
-    fn append_menu(&self, h_menu: Handle, flags: u16, id_new_item: u16, new_item_str: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn append_menu(
+        &self,
+        _h_menu: Handle,
+        _flags: u16,
+        _id_new_item: u16,
+        _new_item_str: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(1))
     }

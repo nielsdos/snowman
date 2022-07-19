@@ -137,13 +137,11 @@ impl WindowManager {
 
     pub fn window_rect_of(&self, identifier: WindowIdentifier) -> Option<Rect> {
         // TODO: what about nested windows?
-        self.windows
-            .get(&identifier)
-            .map(|window| Rect {
-                top: window.position.y,
-                left: window.position.x,
-                right: window.width,
-                bottom: window.height,
-            })
+        self.windows.get(&identifier).map(|window| Rect {
+            top: window.position.y,
+            left: window.position.x,
+            right: window.width,
+            bottom: window.height,
+        })
     }
 }

@@ -273,11 +273,16 @@ impl<'a> Emulator<'a> {
         self.write_mod_rm::<8>(mod_rm, data)
     }
 
-    fn generic_bitwise_r_rm<const N: usize, F: Fn(u16, u16) -> u16>(&mut self, f: F) -> Result<(), EmulatorError> {
+    fn generic_bitwise_r_rm<const N: usize, F: Fn(u16, u16) -> u16>(
+        &mut self,
+        f: F,
+    ) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let result = f(self.read_mod_rm::<N>(mod_rm)?, self
-            .regs
-            .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()));
+        let result = f(
+            self.read_mod_rm::<N>(mod_rm)?,
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+        );
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
@@ -793,8 +798,12 @@ impl<'a> Emulator<'a> {
 
     fn add_al_imm8(&mut self) -> Result<(), EmulatorError> {
         let data = self.read_ip_u8()?;
-        let (result, result_did_carry) = self.regs.read_gpr_lo_8(Registers::REG_AL).overflowing_add(data);
-        self.regs.handle_arithmetic_result_u8(result, result_did_carry, true);
+        let (result, result_did_carry) = self
+            .regs
+            .read_gpr_lo_8(Registers::REG_AL)
+            .overflowing_add(data);
+        self.regs
+            .handle_arithmetic_result_u8(result, result_did_carry, true);
         Ok(())
     }
 

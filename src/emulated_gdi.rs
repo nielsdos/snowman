@@ -43,15 +43,13 @@ impl<'a> EmulatedGdi<'a> {
     fn get_device_caps(&self, _hdc: Handle, index: u16) -> Result<ReturnValue, EmulatorError> {
         println!("Get caps: {}", index);
         /*
-          For a 640x480 vbox screen:
-          4 -> 00D0 = 208
-          6 -> 009C = 156
-          8 -> 0280 = 640
-          A -> 01E0 = 480
-         */
-        let convert_to_unit = |number: u32| {
-            ((number * 1000 + 3077 / 2) / 3077) as u16
-        };
+         For a 640x480 vbox screen:
+         4 -> 00D0 = 208
+         6 -> 009C = 156
+         8 -> 0280 = 640
+         A -> 01E0 = 480
+        */
+        let convert_to_unit = |number: u32| ((number * 1000 + 3077 / 2) / 3077) as u16;
         if index == DeviceCapRequest::HorzRes.into() {
             // TODO: screen width in pixels
             Ok(ReturnValue::U16(800))
@@ -89,7 +87,12 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn create_pen(&self, style: u16, width: u16, color: u32) -> Result<ReturnValue, EmulatorError> {
+    fn create_pen(
+        &self,
+        _style: u16,
+        width: u16,
+        color: u32,
+    ) -> Result<ReturnValue, EmulatorError> {
         let width = width.max(1);
         // TODO: validation of with wrt style
         // TODO: do we have to take into account the alpha channel?

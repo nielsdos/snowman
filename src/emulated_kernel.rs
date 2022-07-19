@@ -75,7 +75,12 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn get_proc_address(&self, accessor: EmulatorAccessor, h_module: Handle, proc_name: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn get_proc_address(
+        &self,
+        accessor: EmulatorAccessor,
+        _h_module: Handle,
+        proc_name: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         println!("GET PROC ADDRESS");
         debug_print_null_terminated_string(&accessor, proc_name.0);
         Ok(ReturnValue::U32(0))
@@ -153,13 +158,13 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn global_lock(&self, h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn global_lock(&self, _h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U32(0))
     }
 
     #[api_function]
-    fn global_unlock(&self, h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn global_unlock(&self, _h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(1))
     }
@@ -188,7 +193,7 @@ impl EmulatedKernel {
         key_name: Pointer,
         default: Pointer,
         returned_string: Pointer,
-        size: u16,
+        _size: u16,
         file_name: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
         debug_print_null_terminated_string(&accessor, app_name.0);
@@ -201,7 +206,12 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn lstrcat(&self, mut accessor: EmulatorAccessor, str1: Pointer, str2: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn lstrcat(
+        &self,
+        mut accessor: EmulatorAccessor,
+        str1: Pointer,
+        str2: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         // todo: wsprintf precies afgekapt?
         let str1_length = accessor.strlen(str1.0)?;
         let str1_end = str1.advanced(str1_length as u32);
@@ -212,7 +222,11 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn strlen(&self, accessor: EmulatorAccessor, str: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn strlen(
+        &self,
+        accessor: EmulatorAccessor,
+        str: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         Ok(ReturnValue::U16(accessor.strlen(str.0)?))
     }
 

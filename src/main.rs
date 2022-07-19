@@ -1,3 +1,4 @@
+use crate::byte_string::HeapByteString;
 use crate::emulated_gdi::EmulatedGdi;
 use crate::emulated_kernel::EmulatedKernel;
 use crate::emulated_keyboard::EmulatedKeyboard;
@@ -6,6 +7,7 @@ use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
 use crate::memory::Memory;
+use crate::message_queue::MessageQueue;
 use crate::module::{DummyModule, GdiModule, KernelModule, KeyboardModule, Module, UserModule};
 use crate::object_environment::ObjectEnvironment;
 use crate::registers::Registers;
@@ -17,9 +19,6 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use sdl2::keyboard::Keycode::Hash;
-use crate::byte_string::{ByteString, HeapByteString};
-use crate::message_queue::MessageQueue;
 
 #[macro_use]
 extern crate num_derive;
@@ -517,7 +516,10 @@ pub struct ResourceTable {
     strings_resources: HashMap<u16, HeapByteString>,
 }
 
-fn process_resource_table(executable: &mut Executable, offset_to_resource_table: usize) -> Result<ResourceTable, ExecutableFormatError> {
+fn process_resource_table(
+    executable: &mut Executable,
+    offset_to_resource_table: usize,
+) -> Result<ResourceTable, ExecutableFormatError> {
     let mut resource_table = ResourceTable {
         strings_resources: HashMap::new(),
     };
@@ -532,13 +534,17 @@ fn process_resource_table(executable: &mut Executable, offset_to_resource_table:
             break;
         }
         let number_of_resources_for_this_type = executable.read_u16(offset + 2)?;
-        println!("type id {:x} -> {}", type_id, number_of_resources_for_this_type);
+        println!(
+            "type id {:x} -> {}",
+            type_id, number_of_resources_for_this_type
+        );
 
         // two fields of above, and 4 reserved bytes
         offset += 8;
 
         for index in 0..number_of_resources_for_this_type {
-            let resource_offset_in_file = (executable.read_u16(offset)? as usize) << alignment_shift_count;
+            let resource_offset_in_file =
+                (executable.read_u16(offset)? as usize) << alignment_shift_count;
             let length = (executable.read_u16(offset + 2)? as usize) << alignment_shift_count;
             let id = executable.read_u16(offset + 6)?;
             println!("entry index {}, id {}, length {}", index, id, length);
@@ -560,7 +566,8 @@ fn process_resource_table(executable: &mut Executable, offset_to_resource_table:
                         // and every entry id shares the same lower 4 bits.
                         // I'm not sure why, but the string IDs seem to be 0-based, while the IDs here seem to be 1-based...
                         let string_id = (id.wrapping_sub(1) * 16) + string_index;
-                        let string_slice = executable.slice(string_offset, string_length as usize)?;
+                        let string_slice =
+                            executable.slice(string_offset, string_length as usize)?;
                         let string = HeapByteString::from(string_slice.into());
                         resource_table.strings_resources.insert(string_id, string);
                         string_offset += string_length as usize;
@@ -707,7 +714,8 @@ fn process_file_ne(
     let message_queue = MessageQueue::new();
     let objects = RwLock::new(ObjectEnvironment::new(window_manager));
     let emulated_kernel = EmulatedKernel::new();
-    let emulated_user = EmulatedUser::new(&objects, &message_queue, resource_table, button_wnd_proc);
+    let emulated_user =
+        EmulatedUser::new(&objects, &message_queue, resource_table, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     let mut emulator = Emulator::new(

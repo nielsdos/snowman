@@ -1,7 +1,6 @@
 use crate::bitmap::Color;
 use crate::handle_table::{Handle, HandleTable};
 use crate::memory::SegmentAndOffset;
-use crate::message_queue::MessageQueue;
 use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;

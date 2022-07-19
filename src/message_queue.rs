@@ -40,7 +40,7 @@ impl MessageQueue {
                 Some(message)
             } else {
                 None
-            }
+            };
         }
     }
 }
