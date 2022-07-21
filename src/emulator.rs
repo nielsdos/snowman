@@ -872,6 +872,7 @@ impl<'a> Emulator<'a> {
         let data = self.read_ip_u16()?;
         let (result, carry, overflow) =
             add_with_flags_16(self.regs.read_gpr_16(Registers::REG_AX), data);
+        self.regs.write_gpr_16(Registers::REG_AX, result);
         self.regs
             .handle_arithmetic_result_u16(result, carry, true, overflow);
         Ok(())
