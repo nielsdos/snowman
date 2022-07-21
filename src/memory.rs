@@ -24,6 +24,13 @@ impl Memory {
         }
     }
 
+    pub fn zero(&mut self, start: u32, end: u32) -> Result<(), EmulatorError> {
+        self.bytes.get_mut(start as usize..end as usize)
+            .ok_or(EmulatorError::OutOfBounds)?
+            .fill(0);
+        Ok(())
+    }
+
     pub fn slice(&self, start: u32, end: u32) -> Result<&[u8], EmulatorError> {
         self.bytes
             .get(start as usize..end as usize)
