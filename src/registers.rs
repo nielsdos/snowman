@@ -1,7 +1,6 @@
 pub struct Registers {
     pub ip: u16,
     gpr: [u16; 8],
-    // TODO: Last 2 unused until I figure out what to do with illegal instructions
     segments: [u16; 8],
     flags: u16,
 }
@@ -40,12 +39,15 @@ impl Registers {
     pub const REG_FS: u8 = 4;
     pub const REG_GS: u8 = 5;
 
-    pub fn new(ds: u16, cs: u16, ip: u16) -> Self {
+    pub fn new(ds: u16, cs: u16, ip: u16, sp: u16) -> Self {
         let mut gpr = [0; 8];
-        gpr[Self::REG_SP as usize] = 0xF000; // TODO
+        gpr[Self::REG_SP as usize] = sp;
         let mut segments = [0; 8];
         segments[Self::REG_CS as usize] = cs;
+        segments[Self::REG_ES as usize] = ds;
         segments[Self::REG_DS as usize] = ds;
+        segments[Self::REG_FS as usize] = ds;
+        segments[Self::REG_GS as usize] = ds;
         segments[Self::REG_SS as usize] = ds;
         Self {
             ip,
@@ -180,8 +182,10 @@ impl Registers {
         let highest_bit_flag = if N == 8 { 1 << 7 } else { 1 << 15 };
         if result == 0 {
             self.flags |= Self::FLAG_ZF | Self::FLAG_PF;
-        } else if result & highest_bit_flag > 0 {
-            self.flags |= Self::FLAG_SF;
+        } else {
+            if result & highest_bit_flag > 0 {
+                self.flags |= Self::FLAG_SF;
+            }
             if (result.count_ones() & 1) == 0 {
                 self.flags |= Self::FLAG_PF;
             }
@@ -193,12 +197,11 @@ impl Registers {
         result_did_carry: bool,
         result: u16,
     ) {
-        // Clear OF & CF, and the flags we can set here
         self.flags &=
             !(Self::FLAG_CF | Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF);
         self.set_zf_pf_sf::<N>(result);
         if result_did_carry {
-            self.flags |= Self::FLAG_CF;
+            self.flags |= Self::FLAG_CF | Self::FLAG_OF;
         }
     }
 
@@ -215,8 +218,9 @@ impl Registers {
         result: u16,
         result_did_carry: bool,
         affect_cf: bool,
+        overflow: bool,
     ) {
-        // TODO: support OF, AF
+        // TODO: support AF
 
         // Clear the flags we can set here
         if affect_cf {
@@ -227,6 +231,9 @@ impl Registers {
         }
         self.flags &=
             !(Self::FLAG_OF | Self::FLAG_SF | Self::FLAG_ZF | Self::FLAG_PF | Self::FLAG_AF);
+        if overflow {
+            self.flags |= Self::FLAG_OF;
+        }
         self.set_zf_pf_sf::<N>(result);
     }
 
@@ -238,22 +245,26 @@ impl Registers {
         }
     }
 
+    #[inline]
     pub fn handle_arithmetic_result_u16(
         &mut self,
         result: u16,
         result_did_carry: bool,
         affect_cf: bool,
+        overflow: bool,
     ) {
-        self.handle_arithmetic_result_u_generic::<16>(result, result_did_carry, affect_cf)
+        self.handle_arithmetic_result_u_generic::<16>(result, result_did_carry, affect_cf, overflow)
     }
 
+    #[inline]
     pub fn handle_arithmetic_result_u8(
         &mut self,
         result: u8,
         result_did_carry: bool,
         affect_cf: bool,
+        overflow: bool,
     ) {
-        self.handle_arithmetic_result_u_generic::<8>(result as u16, result_did_carry, affect_cf)
+        self.handle_arithmetic_result_u_generic::<8>(result as u16, result_did_carry, affect_cf, overflow)
     }
 
     pub fn flag_zero(&self) -> bool {
