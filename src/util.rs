@@ -48,6 +48,60 @@ pub fn u32_from_array<const N: usize>(bytes: &[u8; N], offset: usize) -> Option<
     ))
 }
 
+#[inline]
+pub fn add_with_flags_16(a: u16, b: u16) -> (u16, bool, bool) {
+    let (result, carry) = a.overflowing_add(b);
+    let overflow = (a as i16).overflowing_add(b as i16).1;
+    (result, carry, overflow)
+}
+
+#[inline]
+pub fn sub_with_flags_16(a: u16, b: u16) -> (u16, bool, bool) {
+    let (result, carry) = a.overflowing_sub(b);
+    let overflow = (a as i16).overflowing_sub(b as i16).1;
+    (result, carry, overflow)
+}
+
+#[inline]
+pub fn add_with_flags_8(a: u8, b: u8) -> (u8, bool, bool) {
+    let (result, carry) = a.overflowing_add(b);
+    let overflow = (a as i8).overflowing_add(b as i8).1;
+    (result, carry, overflow)
+}
+
+#[inline]
+pub fn sub_with_flags_8(a: u8, b: u8) -> (u8, bool, bool) {
+    let (result, carry) = a.overflowing_sub(b);
+    let overflow = (a as i8).overflowing_sub(b as i8).1;
+    (result, carry, overflow)
+}
+
+fn map_u16_u8(tuple: (u8, bool, bool)) -> (u16, bool, bool) {
+    (tuple.0 as u16, tuple.1, tuple.2)
+}
+
+#[inline]
+pub fn sub_with_flags<const N: usize>(a: u16, b: u16) -> (u16, bool, bool) {
+    if N == 16 {
+        sub_with_flags_16(a, b)
+    } else if N == 8 {
+        map_u16_u8(sub_with_flags_8(a as u8, b as u8))
+    } else {
+        unreachable!()
+    }
+}
+
+#[inline]
+pub fn add_with_flags<const N: usize>(a: u16, b: u16) -> (u16, bool, bool) {
+    if N == 16 {
+        add_with_flags_16(a, b)
+    } else if N == 8 {
+        map_u16_u8(add_with_flags_8(a as u8, b as u8))
+    } else {
+        unreachable!()
+    }
+}
+
 pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut address: u32) {
     print!("  > {:x} -> \"", address);
     let mut length = 0;
