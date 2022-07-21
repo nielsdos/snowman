@@ -99,15 +99,18 @@ impl KernelModule {
 impl Module for KernelModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
+            91 | 102 => 0,
             7 | 18 | 19 | 23 | 24 | 30 => 2,
             5 | 61 | 90 => 4,
             50 | 51 => 6,
-            89 => 8,
+            54 | 89 => 8,
             57 | 60 => 10,
             127 => 14,
+            129 => 16,
             58 => 18,
             128 => 22,
-            _ => 0,
+            178 => 0 /* TODO: don't know! */,
+            _ => unimplemented!("procedure {}", procedure),
         }
     }
 
@@ -131,14 +134,17 @@ impl UserModule {
 impl Module for UserModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            5 | 66 | 69 | 124 | 157 | 179 | 180 => 2,
-            12 | 42 | 57 | 68 | 113 | 114 | 156 => 4,
-            33 | 37 | 39 | 40 | 154 | 155 | 173 => 6,
-            61 | 77 | 78 | 81 | 125 => 8,
-            0xFFFF | 10 | 107 | 108 | 176 | 411 => 10,
-            1 | 87 => 12,
+            19 | 243 => 0,
+            5 | 6 | 18 | 31 | 59 | 66 | 69 | 124 | 157 | 179 | 180 | 249 | 272 | 287 => 2,
+            12 | 42 | 57 | 68 | 113 | 114 | 135 | 156 => 4,
+            32 | 33 | 37 | 39 | 40 | 134 | 154 | 155 | 173 | 174 => 6,
+            77 | 78 | 81 | 125 | 136 => 8,
+            0xFFFF | 10 | 107 | 108 | 110 | 176 | 411 => 10,
+            1 | 72 | 87 => 12,
+            232 => 14,
             41 => 30,
-            _ => 0,
+            420 => 0, // WSPRINTF's caller cleans up the arguments
+            _ => unimplemented!("procedure {}", procedure),
         }
     }
 
@@ -162,11 +168,17 @@ impl GdiModule {
 impl Module for GdiModule {
     fn argument_bytes_of_procedure(&self, procedure: u16) -> u16 {
         match procedure {
-            68 | 69 | 87 => 2,
-            2 | 45 | 66 | 80 | 119 => 4,
+            52 | 68 | 69 | 87 => 2,
+            2 | 4 | 45 | 57 | 66 | 80 | 119 | 346 => 4,
+            1 | 9 | 19 | 20 | 128 | 154 => 6,
+            61 | 91 => 8,
             27 => 10,
+            156 => 12,
+            29 => 14,
             53 => 16,
-            _ => 0,
+            34 => 20,
+            351 => 22,
+            _ => unimplemented!("procedure {}", procedure),
         }
     }
 
