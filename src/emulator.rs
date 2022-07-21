@@ -398,8 +398,8 @@ impl<'a> Emulator<'a> {
             }
             3 => {
                 // neg
+                assert!(N == 16); // TODO
                 let data = self.read_mod_rm::<N>(mod_rm)?;
-                println!("neg {} {}", data, N);
                 let carry = data != 0;
                 let result = (!data).wrapping_add(1);
                 self.write_mod_rm::<N>(mod_rm, result)?;
@@ -437,7 +437,6 @@ impl<'a> Emulator<'a> {
                     if quotient > 0x7fff || quotient < -0x8000 {
                         return Err(EmulatorError::DivideError);
                     }
-                    println!("divide {}/{} = {} rem {}", lhs, rhs, quotient, remainder);
                     self.regs
                         .write_gpr_16(Registers::REG_AX, quotient as u32 as u16);
                     self.regs
@@ -627,7 +626,6 @@ impl<'a> Emulator<'a> {
 
     fn op_0xff(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
-        println!("{:?} {}", mod_rm, mod_rm.mod_rm_byte.register_destination());
         match mod_rm.mod_rm_byte.register_destination() {
             0 => {
                 // inc ...
@@ -679,7 +677,6 @@ impl<'a> Emulator<'a> {
                 let carry = (data & 1) == 1;
                 let result = data >> 1;
                 let result = result as u16;
-                println!("sar {} 1 = {}", data, result);
                 self.regs.handle_bitwise_result_u16(carry, result);
                 self.write_mod_rm_16(mod_rm, result)
             }
