@@ -530,12 +530,14 @@ fn perform_relocations(
 
 pub struct ResourceTable {
     strings_resources: HashMap<u16, HeapByteString>,
+    other_resources: HashMap<HeapByteString, Box<[u8]>>,
 }
 
 impl ResourceTable {
     pub fn new() -> Self {
         Self {
             strings_resources: HashMap::new(),
+            other_resources: HashMap::new(),
         }
     }
 }
@@ -561,15 +563,6 @@ fn process_resource_table(
             type_id, number_of_resources_for_this_type
         );
 
-        if (type_id & 0x8000) == 0 {
-            let string_offset = type_id as usize;
-            let string_length = executable.read_u8(string_offset)?;
-            let string_slice = executable.slice(string_offset + 1, string_length as usize)?;
-            let string = HeapByteString::from(string_slice.into());
-            println!("{:?}", string);
-            //assert!(false);
-        }
-
         // two fields of above, and 4 reserved bytes
         offset += 8;
 
@@ -586,27 +579,31 @@ fn process_resource_table(
             if type_id == 0x8006 {
                 let old_cursor = executable.seek_from_start(resource_offset_in_file)?;
                 let mut string_offset = 0;
-
                 let mut string_index = 0;
                 while string_offset < length {
-                    let string_length = executable.read_u8(string_offset)?;
+                    let string = executable.read_string(string_offset)?;
                     string_offset += 1;
-                    if string_length != 0 {
+                    if let Some(string) = string {
                         // https://docs.microsoft.com/en-us/windows/win32/menurc/stringtable-resource
                         // Page on link above says each string table holds up to 16 entries,
                         // and every entry id shares the same lower 4 bits.
                         // I'm not sure why, but the string IDs seem to be 0-based, while the IDs here seem to be 1-based...
                         let string_id = (id.wrapping_sub(1) * 16) + string_index;
-                        let string_slice =
-                            executable.slice(string_offset, string_length as usize)?;
-                        let string = HeapByteString::from(string_slice.into());
+                        string_offset += string.as_slice().len();
                         resource_table.strings_resources.insert(string_id, string);
-                        string_offset += string_length as usize;
                     }
                     string_index += 1;
                 }
 
                 executable.restore_cursor(old_cursor);
+            } else if (type_id & 0x8000) == 0 {
+                // Custom type
+                if let Some(mut string) = executable.read_string_to_lowercase(type_id as usize)? {
+                    let old_cursor = executable.seek_from_start(resource_offset_in_file)?;
+                    let data = executable.slice(0, length)?;
+                    resource_table.other_resources.insert(string, data.into());
+                    executable.restore_cursor(old_cursor);
+                }
             }
 
             offset += 12;
@@ -659,6 +656,7 @@ fn process_file_ne(
     } else {
         process_resource_table(executable, offset_to_resource_table)?
     };
+    println!("{:?}", resource_table.other_resources);
 
     println!(
         "Expected Windows version: {}.{}",

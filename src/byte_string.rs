@@ -24,6 +24,16 @@ impl HeapByteString {
         Self { data }
     }
 
+    pub fn from_to_lowercase(data: &[u8]) -> Self {
+        let mut data = data.to_vec();
+        for entry in data.iter_mut() {
+            if *entry >= 65 && *entry <= 90 {
+                *entry |= 32;
+            }
+        }
+        Self { data: data.into() }
+    }
+
     pub fn as_slice(&self) -> &[u8] {
         self.data.deref()
     }

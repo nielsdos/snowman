@@ -1,4 +1,4 @@
-use crate::{bool_to_result, u16_from_slice};
+use crate::{bool_to_result, HeapByteString, u16_from_slice};
 
 #[derive(Debug)]
 pub enum ExecutableFormatError {
@@ -83,10 +83,27 @@ impl<'a> Executable<'a> {
     }
 
     pub fn slice(&self, offset: usize, len: usize) -> Result<&[u8], ExecutableFormatError> {
-        if self.cursor + offset + len < self.internal_data.len() {
+        if self.cursor + offset + len <= self.internal_data.len() {
             Ok(&self.internal_data[self.cursor + offset..self.cursor + offset + len])
         } else {
             Err(ExecutableFormatError::HeaderSize)
         }
+    }
+
+    pub fn read_string_helper(&self, offset: usize) -> Result<Option<&[u8]>, ExecutableFormatError> {
+        let length = self.read_u8(offset)?;
+        if length == 0 {
+            Ok(None)
+        } else {
+            self.slice(offset + 1, length as usize).map(Some)
+        }
+    }
+
+    pub fn read_string(&self, offset: usize) -> Result<Option<HeapByteString>, ExecutableFormatError> {
+        self.read_string_helper(offset).map(|data| data.map(|data| HeapByteString::from(data.into())))
+    }
+
+    pub fn read_string_to_lowercase(&self, offset: usize) -> Result<Option<HeapByteString>, ExecutableFormatError> {
+        self.read_string_helper(offset).map(|data| data.map(|data| HeapByteString::from_to_lowercase(data.into())))
     }
 }
