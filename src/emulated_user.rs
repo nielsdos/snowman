@@ -41,7 +41,7 @@ struct Paint {
 // TODO: figure out which parts here need to be shared and in case of sharing, what needs to be protected
 pub struct EmulatedUser<'a> {
     user_atom_table: AtomTable<'a>,
-    resource_table: ResourceTable,
+    resource_table: &'a ResourceTable,
     window_classes: HashMap<ByteString<'a>, WindowClass<'a>>,
     objects: &'a RwLock<ObjectEnvironment<'a>>,
     message_queue: &'a MessageQueue,
@@ -124,7 +124,7 @@ impl<'a> EmulatedUser<'a> {
     pub fn new(
         objects: &'a RwLock<ObjectEnvironment<'a>>,
         message_queue: &'a MessageQueue,
-        resource_table: ResourceTable,
+        resource_table: &'a ResourceTable,
         button_wnd_proc: SegmentAndOffset,
     ) -> Self {
         let mut window_classes = HashMap::new();
@@ -396,7 +396,7 @@ impl<'a> EmulatedUser<'a> {
         let wnd_class_menu_name = accessor.memory().flat_pointer_read(wnd_class_ptr.0 + 18)?;
         let wnd_class_class_name = accessor.memory().flat_pointer_read(wnd_class_ptr.0 + 22)?;
 
-        let cloned_class_name = accessor.clone_string(wnd_class_class_name)?;
+        let cloned_class_name = accessor.clone_string(wnd_class_class_name, false)?;
         if let Some(atom) = self
             .user_atom_table
             .register(cloned_class_name.clone().into())
@@ -413,7 +413,7 @@ impl<'a> EmulatedUser<'a> {
                 h_cursor: wnd_class_h_cursor.into(),
                 h_background: wnd_class_h_background.into(),
                 menu_class_name: if wnd_class_menu_name != 0 {
-                    Some(accessor.clone_string(wnd_class_menu_name)?.into())
+                    Some(accessor.clone_string(wnd_class_menu_name, false)?.into())
                 } else {
                     None
                 },

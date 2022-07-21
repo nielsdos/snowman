@@ -530,7 +530,7 @@ fn perform_relocations(
 
 pub struct ResourceTable {
     strings_resources: HashMap<u16, HeapByteString>,
-    other_resources: HashMap<HeapByteString, Box<[u8]>>,
+    other_resources: HashMap<HeapByteString, HashMap<HeapByteString, Box<[u8]>>>,
 }
 
 impl ResourceTable {
@@ -598,10 +598,18 @@ fn process_resource_table(
                 executable.restore_cursor(old_cursor);
             } else if (type_id & 0x8000) == 0 {
                 // Custom type
-                if let Some(mut string) = executable.read_string_to_lowercase(type_id as usize)? {
+                if let (Some(type_string), Some(name_string)) = (executable.read_string_to_lowercase(type_id as usize)?, executable.read_string_to_lowercase(id as usize)?) {
                     let old_cursor = executable.seek_from_start(resource_offset_in_file)?;
                     let data = executable.slice(0, length)?;
-                    resource_table.other_resources.insert(string, data.into());
+                    // TODO: this now assumes we always have a string name
+                    if let Some(type_table) = resource_table.other_resources.get_mut(&type_string) {
+                        type_table.insert(name_string, data.into());
+                    } else {
+                        let mut new_map = HashMap::new();
+                        new_map.insert(name_string, data.into());
+                        resource_table.other_resources.insert(type_string, new_map);
+                    }
+
                     executable.restore_cursor(old_cursor);
                 }
             }
@@ -746,9 +754,9 @@ fn process_file_ne(
     let local_heap = Heap::new(heap_size_left as u16, ds_stack_end as u16);
     let message_queue = MessageQueue::new();
     let objects = RwLock::new(ObjectEnvironment::new(window_manager, local_heap));
-    let emulated_kernel = EmulatedKernel::new(&objects);
+    let emulated_kernel = EmulatedKernel::new(&objects, &resource_table);
     let emulated_user =
-        EmulatedUser::new(&objects, &message_queue, resource_table, button_wnd_proc);
+        EmulatedUser::new(&objects, &message_queue, &resource_table, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
     println!("{:?}", chosen_segments);

@@ -64,9 +64,6 @@ impl<'a> Drop for BitmapView<'a> {
 
 impl Bitmap {
     pub fn new(width: i16, height: i16) -> Self {
-        // TODO: remove this size hack
-        let width = 500;
-        let height = 500;
         Self {
             pixels: vec![Color(100, 0, 100); (width as usize) * (height as usize)],
             translation: Point::origin(),

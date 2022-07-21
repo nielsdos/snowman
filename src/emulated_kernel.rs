@@ -1,19 +1,29 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::constants::WinFlags;
 use crate::emulator_accessor::EmulatorAccessor;
-use crate::handle_table::Handle;
+use crate::handle_table::{GenericHandle, Handle, HandleTable};
 use crate::registers::Registers;
-use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment};
+use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment, ResourceTable};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
 
+pub enum KernelObject<'a> {
+    Resource(&'a Box<[u8]>),
+}
+
 pub struct EmulatedKernel<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
+    resource_table: &'a ResourceTable,
+    kernel_handles: HandleTable<KernelObject<'a>>,
 }
 
 impl<'a> EmulatedKernel<'a> {
-    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
-        Self { objects }
+    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>, resource_table: &'a ResourceTable) -> Self {
+        Self {
+            objects,
+            resource_table,
+            kernel_handles: HandleTable::new(),
+        }
     }
 
     fn write_objects(&self) -> RwLockWriteGuard<ObjectEnvironment<'a>> {
@@ -148,32 +158,40 @@ impl<'a> EmulatedKernel<'a> {
 
     #[api_function]
     fn find_resource(
-        &self,
+        &mut self,
         accessor: EmulatorAccessor,
-        module: Handle,
+        _module: Handle,
         name: Pointer,
-        _type: Pointer,
+        res_type: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
-        debug!(
-            "[kernel] FIND RESOURCE {:x} {:x} {:?}",
-            _type.0, name.0, module
-        );
-        debug_print_null_terminated_string(&accessor, name.0);
-        debug_print_null_terminated_string(&accessor, _type.0);
-        // TODO: this returns a hardcoded handle
-        Ok(ReturnValue::U16(1))
+        // TODO: should look at the resource table of provided module
+        // TODO: this now assumes string types
+        let name = accessor.clone_string(name.0, true)?;
+        let res_type = accessor.clone_string(res_type.0, true)?;
+        let handle = self.resource_table.other_resources.get(&res_type)
+            .and_then(|table| table.get(&name))
+            .and_then(|data| {
+                self.kernel_handles.register(KernelObject::Resource(data))
+            });
+        Ok(ReturnValue::U16(handle.unwrap_or(Handle::null()).as_u16()))
     }
 
     #[api_function]
     fn load_resource(
         &self,
-        module: Handle,
-        res_info: Handle,
+        mut accessor: EmulatorAccessor,
+        _module: Handle,
+        resource: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
-        debug!("[kernel] LOAD RESOURCE {:?} {:?}", module, res_info);
-        //assert!(false);
-        // TODO: this returns a hardcoded handle
-        Ok(ReturnValue::U16(0xDEAD))
+        // TODO: this should look at the module
+        // TODO: this should allocate global memory and load the resource to that location
+        //       the return value here should be the handle to the global memory...
+        if let Some(KernelObject::Resource(data)) = self.kernel_handles.get(resource) {
+            accessor.memory_mut().copy_from(&*data, 0xF0000)?;
+            Ok(ReturnValue::U16(0xBEEF))
+        } else {
+            Ok(ReturnValue::U16(Handle::null().as_u16()))
+        }
     }
 
     #[api_function]
@@ -201,16 +219,9 @@ impl<'a> EmulatedKernel<'a> {
         _h_mem: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
         println!("{:?}", _h_mem);
+        // TODO
         let segment = 0xF000;
         let offset = 0;
-
-        // TODO: hack
-        //for (i, entry) in data.iter().enumerate() {
-        //    let entry = *entry;
-        //    accessor.memory_mut().write_u16(0xF000 * 0x10 + (i as u32 * 2), (entry >> 8) | ((entry & 0xFF) << 8))?;
-        //}
-
-        // TODO
         Ok(ReturnValue::U32((segment << 16) | offset))
     }
 
@@ -291,7 +302,7 @@ impl<'a> EmulatedKernel<'a> {
     }
 
     pub fn syscall(
-        &self,
+        &mut self,
         nr: u16,
         emulator_accessor: EmulatorAccessor,
     ) -> Result<ReturnValue, EmulatorError> {

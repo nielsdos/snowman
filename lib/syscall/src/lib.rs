@@ -92,7 +92,7 @@ pub fn api_function(_attr: TokenStream, input: TokenStream) -> TokenStream {
                         },
                         InternalType::HeapByteString => quote! {
                             let tmp_pointer = accessor.pointer_argument(#argument_offset)?;
-                            let #identifier = accessor.clone_string(tmp_pointer)?;
+                            let #identifier = accessor.clone_string(tmp_pointer, false)?;
                         },
                         _ => panic!("unexpected case"),
                     };
