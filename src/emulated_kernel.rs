@@ -6,6 +6,7 @@ use crate::registers::Registers;
 use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment, ResourceTable};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
+use crate::util::encode_u16_u16_to_u32;
 
 pub enum KernelObject<'a> {
     Resource(&'a Box<[u8]>),
@@ -138,9 +139,7 @@ impl<'a> EmulatedKernel<'a> {
         // As we don't share segments in the same way as a 16-bit Windows might do,
         // we don't need to set up any thunks. We just need to make sure the return value is
         // equal to the original function address.
-        Ok(ReturnValue::U32(
-            ((segment_of_function as u32) << 16) | (offset_of_function as u32),
-        ))
+        Ok(ReturnValue::U32(encode_u16_u16_to_u32(offset_of_function, segment_of_function)))
     }
 
     #[api_function]

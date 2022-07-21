@@ -8,6 +8,7 @@ use crate::two_d::Point;
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
+use crate::util::encode_u16_u16_to_u32;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,

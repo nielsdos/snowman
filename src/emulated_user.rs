@@ -11,7 +11,7 @@ use crate::object_environment::{
     DeviceContext, GdiObject, ObjectEnvironment, UserObject, UserWindow,
 };
 use crate::two_d::{Point, Rect};
-use crate::util::debug_print_null_terminated_string;
+use crate::util::{debug_print_null_terminated_string, encode_u16_u16_to_u32};
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError, ResourceTable};
 use num_traits::FromPrimitive;
@@ -249,7 +249,7 @@ impl<'a> EmulatedUser<'a> {
                     h_wnd: window_handle,
                     message: MessageType::Size,
                     w_param: 0,
-                    l_param: ((height as u16 as u32) << 16) | (width as u16 as u32),
+                    l_param: encode_u16_u16_to_u32(width as u16, height as u16),
                     time: 0,
                     point: Point::origin(),
                 });
