@@ -19,7 +19,7 @@ pub struct Emulator<'a> {
     regs: Registers,
     segment_override: u8,
     memory: Memory,
-    emulated_kernel: EmulatedKernel,
+    emulated_kernel: EmulatedKernel<'a>,
     emulated_user: EmulatedUser<'a>,
     emulated_gdi: EmulatedGdi<'a>,
     emulated_keyboard: EmulatedKeyboard,
@@ -29,7 +29,7 @@ impl<'a> Emulator<'a> {
     pub fn new(
         regs: Registers,
         memory: Memory,
-        emulated_kernel: EmulatedKernel,
+        emulated_kernel: EmulatedKernel<'a>,
         emulated_user: EmulatedUser<'a>,
         emulated_gdi: EmulatedGdi<'a>,
         emulated_keyboard: EmulatedKeyboard,
