@@ -33,8 +33,16 @@ bitflags! {
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub enum MessageType {
     Create = 0x01,
+    Size = 0x05,
     Paint = 0x0f,
     Quit = 0x12,
+    EraseBkGnd = 0x14,
+    ShowWindow = 0x18,
+    GetMinMaxInfo = 0x24,
+    WindowPosChanging = 0x46,
+    NcCreate = 0x81,
+    NcCalcSize = 0x83,
+    Timer = 0x113,
 }
 
 impl From<MessageType> for u16 {
