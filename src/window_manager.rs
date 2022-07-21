@@ -57,25 +57,24 @@ impl WindowManager {
         width: i16,
         height: i16,
         use_parent_bitmap: bool,
-    ) {
+    ) -> (i16, i16) {
         // TODO: set sane limits for arguments?
-        let number_or_default = |number: i16| {
+        let number_or_default = |number: i16, default: i16| {
             if number == -32768 {
-                200
+                default
             } else {
                 number
             }
         };
 
-        // TODO: handle default values for x,y,w,h
-        let width = number_or_default(width);
-        let height = number_or_default(height);
+        let width = number_or_default(width, 400);
+        let height = number_or_default(height, 300);
         self.windows.insert(
             identifier,
             Window {
                 position: Point {
-                    x: number_or_default(x),
-                    y: number_or_default(y),
+                    x: number_or_default(x, 0),
+                    y: number_or_default(y, 0),
                 },
                 width,
                 height,
@@ -86,6 +85,8 @@ impl WindowManager {
                 },
             },
         );
+
+        (width, height)
     }
 
     pub fn show_window(&mut self, identifier: WindowIdentifier) {
