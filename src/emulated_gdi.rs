@@ -1,12 +1,13 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::bitmap::Color;
-use crate::constants::DeviceCapRequest;
+use crate::constants::{DeviceCapRequest, RasterOp};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::{GdiObject, GdiSelectionObjectType, Pen};
-use crate::two_d::Point;
+use crate::two_d::{Point, Rect};
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use num_traits::FromPrimitive;
 use syscall::api_function;
 use crate::util::encode_u16_u16_to_u32;
 
@@ -195,32 +196,42 @@ impl<'a> EmulatedGdi<'a> {
     fn move_to(&self, hdc: Handle, x: i16, y: i16) -> Result<ReturnValue, EmulatorError> {
         match self.write_objects().gdi.get_mut(hdc) {
             Some(GdiObject::DC(dc)) => {
-                dc.move_to(x, y);
-                Ok(ReturnValue::U16(1))
+                let old_position = dc.position.get();
+                dc.move_to(Point::new(x, y));
+                Ok(ReturnValue::U32(encode_u16_u16_to_u32(old_position.x as u16, old_position.y as u16)))
             }
-            _ => Ok(ReturnValue::U16(0)),
+            _ => Ok(ReturnValue::U32(0)),
         }
     }
 
     #[api_function]
     fn line_to(&self, hdc: Handle, x: i16, y: i16) -> Result<ReturnValue, EmulatorError> {
+        let objects = self.read_objects();
         self.read_objects()
-            .with_paint_bitmap_for(hdc, &|mut bitmap| {
-                // TODO: pen & fallibility
-                bitmap.line_to(
-                    Point::new(x, y),
-                    &Pen {
-                        width: 1,
-                        color: Color(0, 0, 0),
-                    },
-                );
+            .with_paint_bitmap_for(hdc, &|mut bitmap, dc| {
+                if let Some(GdiObject::Pen(pen)) = objects.gdi.get(dc.selected_pen) {
+                    let to = Point::new(x, y);
+                    println!("OP: {:?}, color {:?}, {:?}", dc.raster_op, pen.color, dc.selected_pen);
+                    bitmap.line_to(to, pen);
+                    dc.position.set(to);
+                }
             });
+        // TODO
         Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
     fn set_rop2(&self, hdc: Handle, rop2: u16) -> Result<ReturnValue, EmulatorError> {
         println!("SET ROP2 {:?} {:x}", hdc, rop2);
+
+        if let Some(GdiObject::DC(dc)) = self.write_objects().gdi.get_mut(hdc) {
+            if let Some(raster_op) = FromPrimitive::from_u16(rop2) {
+                let old = dc.raster_op;
+                dc.raster_op = raster_op;
+                return Ok(ReturnValue::U16(old.into()))
+            }
+        }
+
         Ok(ReturnValue::U16(0))
     }
 

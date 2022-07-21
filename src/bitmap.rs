@@ -1,6 +1,7 @@
 use crate::object_environment::Pen;
 use crate::two_d::{Point, Rect};
 use std::ops::{Deref, DerefMut};
+use crate::constants::RasterOp;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -16,6 +17,10 @@ impl Color {
         let b = self.0 as u32;
         r | (g << 8) | (b << 16)
     }
+
+    pub fn inverse(&self) -> Self {
+        Self(!self.0, !self.1, !self.2)
+    }
 }
 
 pub struct BitmapView<'a> {
@@ -28,6 +33,7 @@ pub struct Bitmap {
     pixels: Vec<Color>,
     translation: Point,
     moved_to: Point,
+    raster_op: RasterOp,
     width: i16,
     height: i16,
 }
@@ -65,9 +71,10 @@ impl<'a> Drop for BitmapView<'a> {
 impl Bitmap {
     pub fn new(width: i16, height: i16) -> Self {
         Self {
-            pixels: vec![Color(100, 0, 100); (width as usize) * (height as usize)],
+            pixels: vec![Color(192, 192, 192); (width as usize) * (height as usize)],
             translation: Point::origin(),
             moved_to: Point::origin(),
+            raster_op: RasterOp::CopyPen,
             width,
             height,
         }
@@ -119,6 +126,14 @@ impl Bitmap {
         let x = self.clip_and_translate_x(x);
         let y = self.clip_and_translate_y(y);
         let index = self.index_for(x, y);
+        let color = match self.raster_op {
+            RasterOp::Black => Color(0, 0, 0),
+            RasterOp::CopyPen => color,
+            RasterOp::Nop => return,
+            RasterOp::Not => self.pixels[index].inverse(),
+            RasterOp::White => Color(255, 255, 255),
+            _ => todo!(),
+        };
         self.pixels[index] = color;
     }
 
@@ -203,5 +218,19 @@ impl Bitmap {
 
     pub fn line_to(&mut self, to: Point, pen: &Pen) {
         self.draw_line(self.moved_to, to, pen)
+    }
+
+    pub fn outline_rectangle(&mut self, rect: Rect, pen: &Pen) {
+        let old = self.moved_to;
+        self.moved_to = Point::origin();
+        self.draw_line(Point::new(rect.left, rect.bottom), Point::new(rect.right, rect.bottom), pen);
+        self.draw_line(Point::new(rect.left, rect.top), Point::new(rect.left, rect.bottom), pen);
+        self.draw_line(Point::new(rect.left, rect.top), Point::new(rect.right, rect.top), pen);
+        self.draw_line(Point::new(rect.right, rect.top), Point::new(rect.right, rect.bottom), pen);
+        self.moved_to = old;
+    }
+
+    pub fn set_raster_op(&mut self, raster_op: RasterOp) {
+        self.raster_op = raster_op;
     }
 }

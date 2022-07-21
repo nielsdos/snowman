@@ -91,3 +91,30 @@ impl From<DeviceCapRequest> for u16 {
         r as u16
     }
 }
+
+#[allow(dead_code)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+pub enum RasterOp {
+    Black = 1,
+    NotMergePen = 2,
+    MaskNotPen = 3,
+    NotCopyPen = 4,
+    MaskPenNot = 5,
+    Not = 6,
+    XorPen = 7,
+    NotMaskPen = 8,
+    MaskPen = 9,
+    NotXorPen = 10,
+    Nop = 11,
+    MergeNotPen = 12,
+    CopyPen = 13,
+    MergePenNot = 14,
+    MergePen = 15,
+    White = 16,
+}
+
+impl From<RasterOp> for u16 {
+    fn from(r: RasterOp) -> Self {
+        r as u16
+    }
+}

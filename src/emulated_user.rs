@@ -783,9 +783,10 @@ impl<'a> EmulatedUser<'a> {
                 let dc = DeviceContext {
                     bitmap_window_identifier,
                     bitmap_translation: translation,
-                    position: Point::origin(),
+                    position: Cell::new(Point::origin()),
                     selected_brush: Handle::null(),
                     selected_pen: Handle::null(),
+                    raster_op: RasterOp::CopyPen,
                 };
                 objects.gdi.register(GdiObject::DC(dc))
             }

@@ -116,7 +116,8 @@ impl WindowManager {
     pub fn paint_bitmap_for_dc(&mut self, dc: &DeviceContext) -> Option<BitmapView> {
         self.paint_bitmap_for(dc.bitmap_window_identifier)
             .map(|bitmap| {
-                bitmap.move_to(dc.position);
+                bitmap.move_to(dc.position.get());
+                bitmap.set_raster_op(dc.raster_op);
                 BitmapView::new(bitmap, dc.bitmap_translation)
             })
     }

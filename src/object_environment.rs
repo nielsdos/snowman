@@ -6,6 +6,7 @@ use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::constants::RasterOp;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,
@@ -21,9 +22,10 @@ pub enum UserObject {
 pub struct DeviceContext {
     pub bitmap_window_identifier: WindowIdentifier,
     pub bitmap_translation: Point,
-    pub position: Point,
+    pub position: Cell<Point>,
     pub selected_brush: Handle,
     pub selected_pen: Handle,
+    pub raster_op: RasterOp,
 }
 
 pub struct Pen {
@@ -138,8 +140,7 @@ impl DeviceContext {
         }
     }
 
-    pub fn move_to(&mut self, x: i16, y: i16) {
-        self.position.x = x;
-        self.position.y = y;
+    pub fn move_to(&mut self, position: Point) {
+        self.position.set(position);
     }
 }
