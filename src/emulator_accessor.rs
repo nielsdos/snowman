@@ -109,7 +109,11 @@ impl<'a> EmulatorAccessor<'a> {
         Ok(number_of_bytes_copied)
     }
 
-    pub fn clone_string(&self, mut src_ptr: u32, convert_to_lowercase: bool) -> Result<HeapByteString, EmulatorError> {
+    pub fn clone_string(
+        &self,
+        mut src_ptr: u32,
+        convert_to_lowercase: bool,
+    ) -> Result<HeapByteString, EmulatorError> {
         let mut output = Vec::new();
         loop {
             let data = self.memory.read_8(src_ptr)?;

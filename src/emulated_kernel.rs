@@ -3,10 +3,12 @@ use crate::constants::WinFlags;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle, HandleTable};
 use crate::registers::Registers;
-use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment, ResourceTable};
+use crate::util::encode_u16_u16_to_u32;
+use crate::{
+    debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment, ResourceTable,
+};
 use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
-use crate::util::encode_u16_u16_to_u32;
 
 pub enum KernelObject<'a> {
     Resource(&'a Box<[u8]>),
@@ -19,7 +21,10 @@ pub struct EmulatedKernel<'a> {
 }
 
 impl<'a> EmulatedKernel<'a> {
-    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>, resource_table: &'a ResourceTable) -> Self {
+    pub fn new(
+        objects: &'a RwLock<ObjectEnvironment<'a>>,
+        resource_table: &'a ResourceTable,
+    ) -> Self {
         Self {
             objects,
             resource_table,
@@ -139,7 +144,10 @@ impl<'a> EmulatedKernel<'a> {
         // As we don't share segments in the same way as a 16-bit Windows might do,
         // we don't need to set up any thunks. We just need to make sure the return value is
         // equal to the original function address.
-        Ok(ReturnValue::U32(encode_u16_u16_to_u32(offset_of_function, segment_of_function)))
+        Ok(ReturnValue::U32(encode_u16_u16_to_u32(
+            offset_of_function,
+            segment_of_function,
+        )))
     }
 
     #[api_function]
@@ -167,11 +175,12 @@ impl<'a> EmulatedKernel<'a> {
         // TODO: this now assumes string types
         let name = accessor.clone_string(name.0, true)?;
         let res_type = accessor.clone_string(res_type.0, true)?;
-        let handle = self.resource_table.other_resources.get(&res_type)
+        let handle = self
+            .resource_table
+            .other_resources
+            .get(&res_type)
             .and_then(|table| table.get(&name))
-            .and_then(|data| {
-                self.kernel_handles.register(KernelObject::Resource(data))
-            });
+            .and_then(|data| self.kernel_handles.register(KernelObject::Resource(data)));
         Ok(ReturnValue::U16(handle.unwrap_or(Handle::null()).as_u16()))
     }
 
@@ -214,7 +223,7 @@ impl<'a> EmulatedKernel<'a> {
     #[api_function]
     fn global_lock(
         &self,
-        mut accessor: EmulatorAccessor,
+        accessor: EmulatorAccessor,
         _h_mem: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
         println!("{:?}", _h_mem);

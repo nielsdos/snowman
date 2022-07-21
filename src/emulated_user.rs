@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::atom_table::AtomTable;
 use crate::bitmap::Color;
@@ -16,6 +15,7 @@ use crate::util::{debug_print_null_terminated_string, encode_u16_u16_to_u32};
 use crate::window_manager::{ProcessId, WindowIdentifier};
 use crate::{debug, EmulatorError, ResourceTable};
 use num_traits::FromPrimitive;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
@@ -76,8 +76,7 @@ impl<'a> SprintfMachine<'a> {
     }
 
     pub fn write_character(&mut self, character: u8) -> Result<(), EmulatorError> {
-        self
-            .accessor
+        self.accessor
             .memory_mut()
             .write_8(self.current_dest_address, character)?;
         self.characters_written += 1;
@@ -880,7 +879,8 @@ impl<'a> EmulatedUser<'a> {
         let rect = accessor.read_rect(rect.0)?;
         let objects = self.read_objects();
         if let Some(GdiObject::SolidBrush(color)) = objects.gdi.get(h_brush) {
-            objects.with_paint_bitmap_for(h_dc, &|mut bitmap, _| bitmap.fill_rectangle(rect, *color));
+            objects
+                .with_paint_bitmap_for(h_dc, &|mut bitmap, _| bitmap.fill_rectangle(rect, *color));
             Ok(ReturnValue::U16(1))
         } else {
             Ok(ReturnValue::U16(0))

@@ -1,4 +1,5 @@
 #![allow(clippy::new_without_default)]
+#![allow(clippy::manual_range_contains)]
 
 use crate::byte_string::HeapByteString;
 use crate::emulated_gdi::EmulatedGdi;
@@ -598,7 +599,10 @@ fn process_resource_table(
                 executable.restore_cursor(old_cursor);
             } else if (type_id & 0x8000) == 0 {
                 // Custom type
-                if let (Some(type_string), Some(name_string)) = (executable.read_string_to_lowercase(type_id as usize)?, executable.read_string_to_lowercase(id as usize)?) {
+                if let (Some(type_string), Some(name_string)) = (
+                    executable.read_string_to_lowercase(type_id as usize)?,
+                    executable.read_string_to_lowercase(id as usize)?,
+                ) {
                     let old_cursor = executable.seek_from_start(resource_offset_in_file)?;
                     let data = executable.slice(0, length)?;
                     // TODO: this now assumes we always have a string name

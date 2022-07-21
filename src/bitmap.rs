@@ -1,7 +1,7 @@
+use crate::constants::RasterOp;
 use crate::object_environment::Pen;
 use crate::two_d::{Point, Rect};
 use std::ops::{Deref, DerefMut};
-use crate::constants::RasterOp;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -223,10 +223,26 @@ impl Bitmap {
     pub fn outline_rectangle(&mut self, rect: Rect, pen: &Pen) {
         let old = self.moved_to;
         self.moved_to = Point::origin();
-        self.draw_line(Point::new(rect.left, rect.bottom), Point::new(rect.right, rect.bottom), pen);
-        self.draw_line(Point::new(rect.left, rect.top), Point::new(rect.left, rect.bottom), pen);
-        self.draw_line(Point::new(rect.left, rect.top), Point::new(rect.right, rect.top), pen);
-        self.draw_line(Point::new(rect.right, rect.top), Point::new(rect.right, rect.bottom), pen);
+        self.draw_line(
+            Point::new(rect.left, rect.bottom),
+            Point::new(rect.right, rect.bottom),
+            pen,
+        );
+        self.draw_line(
+            Point::new(rect.left, rect.top),
+            Point::new(rect.left, rect.bottom),
+            pen,
+        );
+        self.draw_line(
+            Point::new(rect.left, rect.top),
+            Point::new(rect.right, rect.top),
+            pen,
+        );
+        self.draw_line(
+            Point::new(rect.right, rect.top),
+            Point::new(rect.right, rect.bottom),
+            pen,
+        );
         self.moved_to = old;
     }
 

@@ -1,13 +1,13 @@
-use std::cell::Cell;
 use crate::bitmap::{BitmapView, Color};
+use crate::constants::RasterOp;
 use crate::handle_table::{Handle, HandleTable};
 use crate::heap::Heap;
 use crate::memory::SegmentAndOffset;
 use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
+use std::cell::Cell;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use crate::constants::RasterOp;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,

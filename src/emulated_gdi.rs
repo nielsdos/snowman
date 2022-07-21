@@ -1,15 +1,14 @@
 use crate::api_helpers::{Pointer, ReturnValue};
-use crate::bitmap::Color;
-use crate::constants::{DeviceCapRequest, RasterOp};
+use crate::constants::DeviceCapRequest;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::{GdiObject, GdiSelectionObjectType, Pen};
 use crate::two_d::{Point, Rect};
-use crate::{debug, EmulatorError, ObjectEnvironment};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use num_traits::FromPrimitive;
-use syscall::api_function;
 use crate::util::encode_u16_u16_to_u32;
+use crate::{debug, EmulatorError, ObjectEnvironment};
+use num_traits::FromPrimitive;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use syscall::api_function;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
@@ -108,12 +107,7 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn create_pen(
-        &self,
-        style: u16,
-        width: u16,
-        color: u32,
-    ) -> Result<ReturnValue, EmulatorError> {
+    fn create_pen(&self, style: u16, width: u16, color: u32) -> Result<ReturnValue, EmulatorError> {
         let width = width.max(1);
         // TODO: validation of with wrt style
         // TODO: do we have to take into account the alpha channel?
@@ -191,15 +185,30 @@ impl<'a> EmulatedGdi<'a> {
         right: i16,
         bottom: i16,
     ) -> Result<ReturnValue, EmulatorError> {
-        let mut objects = self.read_objects();
+        let objects = self.read_objects();
         objects.with_paint_bitmap_for(h_dc, &|mut bitmap, device_context| {
-            if let (Some(GdiObject::SolidBrush(brush)), Some(GdiObject::Pen(pen))) = (objects.gdi.get(device_context.selected_brush), objects.gdi.get(device_context.selected_pen)) {
-                bitmap.fill_rectangle(Rect {
-                    top, left, bottom, right,
-                }, *brush);
-                bitmap.outline_rectangle(Rect {
-                    top, left, bottom, right,
-                }, pen);
+            if let (Some(GdiObject::SolidBrush(brush)), Some(GdiObject::Pen(pen))) = (
+                objects.gdi.get(device_context.selected_brush),
+                objects.gdi.get(device_context.selected_pen),
+            ) {
+                bitmap.fill_rectangle(
+                    Rect {
+                        top,
+                        left,
+                        bottom,
+                        right,
+                    },
+                    *brush,
+                );
+                bitmap.outline_rectangle(
+                    Rect {
+                        top,
+                        left,
+                        bottom,
+                        right,
+                    },
+                    pen,
+                );
             }
         });
 
@@ -213,7 +222,10 @@ impl<'a> EmulatedGdi<'a> {
             Some(GdiObject::DC(dc)) => {
                 let old_position = dc.position.get();
                 dc.move_to(Point::new(x, y));
-                Ok(ReturnValue::U32(encode_u16_u16_to_u32(old_position.x as u16, old_position.y as u16)))
+                Ok(ReturnValue::U32(encode_u16_u16_to_u32(
+                    old_position.x as u16,
+                    old_position.y as u16,
+                )))
             }
             _ => Ok(ReturnValue::U32(0)),
         }
@@ -226,7 +238,10 @@ impl<'a> EmulatedGdi<'a> {
             .with_paint_bitmap_for(hdc, &|mut bitmap, dc| {
                 if let Some(GdiObject::Pen(pen)) = objects.gdi.get(dc.selected_pen) {
                     let to = Point::new(x, y);
-                    println!("OP: {:?}, color {:?}, {:?}", dc.raster_op, pen.color, dc.selected_pen);
+                    println!(
+                        "OP: {:?}, color {:?}, {:?}",
+                        dc.raster_op, pen.color, dc.selected_pen
+                    );
                     bitmap.line_to(to, pen);
                     dc.position.set(to);
                 }
@@ -243,7 +258,7 @@ impl<'a> EmulatedGdi<'a> {
             if let Some(raster_op) = FromPrimitive::from_u16(rop2) {
                 let old = dc.raster_op;
                 dc.raster_op = raster_op;
-                return Ok(ReturnValue::U16(old.into()))
+                return Ok(ReturnValue::U16(old.into()));
             }
         }
 
