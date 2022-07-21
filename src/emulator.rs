@@ -975,7 +975,7 @@ impl<'a> Emulator<'a> {
     }
 
     fn push_imm8(&mut self) -> Result<(), EmulatorError> {
-        let data = self.read_ip_u8()?;
+        let data = self.read_ip_i8()?;
         self.push_value_16(data as u16)
     }
 
