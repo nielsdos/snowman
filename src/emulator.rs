@@ -1059,6 +1059,14 @@ impl<'a> Emulator<'a> {
         Ok(())
     }
 
+    fn and_al_imm8(&mut self) -> Result<(), EmulatorError> {
+        let data = self.read_ip_u8()?;
+        let result = self.regs.read_gpr_lo_8(Registers::REG_AL) & data;
+        self.regs.write_gpr_lo_8(Registers::REG_AL, result);
+        self.regs.handle_bitwise_result_u8(false, result as u16);
+        Ok(())
+    }
+
     fn and_ax_imm16(&mut self) -> Result<(), EmulatorError> {
         let data = self.read_ip_u16()?;
         let result = self.regs.read_gpr_16(Registers::REG_AX) & data;
@@ -1111,6 +1119,7 @@ impl<'a> Emulator<'a> {
             0x1C => self.sbb_al_imm8(),
             0x1E => self.push_segment_16(Registers::REG_DS),
             0x1F => self.pop_segment_16(Registers::REG_DS),
+            0x24 => self.and_al_imm8(),
             0x25 => self.and_ax_imm16(),
             0x26 => self.segment_override(Registers::REG_ES),
             0x2E => self.segment_override(Registers::REG_CS),
