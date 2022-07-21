@@ -70,6 +70,9 @@ impl<'a> EmulatedGdi<'a> {
         } else if index == DeviceCapRequest::VertSize.into() {
             // TODO: screen height in some unit
             Ok(ReturnValue::U16(convert_to_unit(600)))
+        } else if index == DeviceCapRequest::NumColors.into() {
+            // 1 is for higher than 8bit color depths
+            Ok(ReturnValue::U16(convert_to_unit(1)))
         } else {
             // TODO
             Ok(ReturnValue::U16(0))
@@ -107,7 +110,7 @@ impl<'a> EmulatedGdi<'a> {
     #[api_function]
     fn create_pen(
         &self,
-        _style: u16,
+        style: u16,
         width: u16,
         color: u32,
     ) -> Result<ReturnValue, EmulatorError> {
@@ -120,6 +123,7 @@ impl<'a> EmulatedGdi<'a> {
             .gdi
             .register(GdiObject::Pen(Pen { width, color }))
             .unwrap_or(Handle::null());
+        println!("PEN: {:?} {} {} {:?}", handle, style, width, color);
         Ok(ReturnValue::U16(handle.as_u16()))
     }
 
@@ -181,13 +185,24 @@ impl<'a> EmulatedGdi<'a> {
     #[api_function]
     fn rectangle(
         &self,
-        hdc: Handle,
+        h_dc: Handle,
         left: i16,
         top: i16,
         right: i16,
         bottom: i16,
     ) -> Result<ReturnValue, EmulatorError> {
-        println!("RECTANGLE: {:?} {} {} {} {}", hdc, left, top, right, bottom);
+        let mut objects = self.read_objects();
+        objects.with_paint_bitmap_for(h_dc, &|mut bitmap, device_context| {
+            if let (Some(GdiObject::SolidBrush(brush)), Some(GdiObject::Pen(pen))) = (objects.gdi.get(device_context.selected_brush), objects.gdi.get(device_context.selected_pen)) {
+                bitmap.fill_rectangle(Rect {
+                    top, left, bottom, right,
+                }, *brush);
+                bitmap.outline_rectangle(Rect {
+                    top, left, bottom, right,
+                }, pen);
+            }
+        });
+
         // TODO
         Ok(ReturnValue::U16(1))
     }

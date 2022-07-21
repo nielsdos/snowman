@@ -52,7 +52,7 @@ impl From<MessageType> for u16 {
 }
 
 #[allow(dead_code)]
-#[derive(Eq, PartialEq, FromPrimitive)]
+#[derive(Debug, Eq, PartialEq, FromPrimitive)]
 pub enum SystemColors {
     Scrollbar,
     Background,
@@ -84,6 +84,7 @@ pub enum DeviceCapRequest {
     VertSize = 6,
     HorzRes = 8,
     VertRes = 10,
+    NumColors = 24,
 }
 
 impl From<DeviceCapRequest> for u16 {

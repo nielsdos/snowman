@@ -1,8 +1,9 @@
+use std::cell::Cell;
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::atom_table::AtomTable;
 use crate::bitmap::Color;
 use crate::byte_string::{ByteString, HeapByteString};
-use crate::constants::{ClassStyles, MessageType, SystemColors};
+use crate::constants::{ClassStyles, MessageType, RasterOp, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::memory::SegmentAndOffset;
@@ -153,6 +154,7 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn internal_get_sys_color(&self, index: u16) -> Result<ReturnValue, EmulatorError> {
         let system_color: Option<SystemColors> = FromPrimitive::from_u16(index);
+        println!("get system color {} {:?}", index, system_color);
         let color = system_color
             .map(|color| self.get_system_color(color))
             .unwrap_or(Color(0, 0, 0));
@@ -314,14 +316,14 @@ impl<'a> EmulatedUser<'a> {
             });
 
             // TODO: also what about child windows?
-            self.message_queue.send(WindowMessage {
+            /*self.message_queue.send(WindowMessage {
                 h_wnd,
                 message: MessageType::Paint,
                 w_param: 0,
                 l_param: 0,
                 time: 0,
                 point: Point::origin(),
-            });
+            });*/
         }
 
         Ok(ReturnValue::U16(success.into()))
@@ -655,7 +657,7 @@ impl<'a> EmulatedUser<'a> {
                 let containing_rect = self
                     .get_client_rect(h_wnd, &objects)
                     .unwrap_or_else(Rect::zero);
-                objects.with_paint_bitmap_for(paint.hdc, &|mut bitmap| {
+                objects.with_paint_bitmap_for(paint.hdc, &|mut bitmap, _| {
                     // Black rounded frame
                     bitmap.draw_horizontal_line(
                         1,
@@ -876,10 +878,9 @@ impl<'a> EmulatedUser<'a> {
         h_brush: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect.0)?;
-        println!("FILL RECT {:?}", rect);
         let objects = self.read_objects();
         if let Some(GdiObject::SolidBrush(color)) = objects.gdi.get(h_brush) {
-            objects.with_paint_bitmap_for(h_dc, &|mut bitmap| bitmap.fill_rectangle(rect, *color));
+            objects.with_paint_bitmap_for(h_dc, &|mut bitmap, _| bitmap.fill_rectangle(rect, *color));
             Ok(ReturnValue::U16(1))
         } else {
             Ok(ReturnValue::U16(0))

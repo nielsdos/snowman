@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use crate::bitmap::{BitmapView, Color};
 use crate::handle_table::{Handle, HandleTable};
 use crate::heap::Heap;
@@ -111,13 +112,13 @@ impl<'a> ObjectEnvironment<'a> {
         self.window_manager.write().unwrap()
     }
 
-    pub fn with_paint_bitmap_for(&self, h_dc: Handle, f: &dyn Fn(BitmapView)) {
+    pub fn with_paint_bitmap_for(&self, h_dc: Handle, f: &dyn Fn(BitmapView, &DeviceContext)) {
         if let Some(GdiObject::DC(device_context)) = self.gdi.get(h_dc) {
             if let Some(bitmap) = self
                 .write_window_manager()
                 .paint_bitmap_for_dc(device_context)
             {
-                f(bitmap)
+                f(bitmap, device_context)
             }
         }
     }
