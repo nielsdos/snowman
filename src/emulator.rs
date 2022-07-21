@@ -863,6 +863,7 @@ impl<'a> Emulator<'a> {
         let data = self.read_ip_u8()?;
         let (result, carry, overflow) =
             add_with_flags_8(self.regs.read_gpr_lo_8(Registers::REG_AL), data);
+        self.regs.write_gpr_lo_8(Registers::REG_AL, result);
         self.regs
             .handle_arithmetic_result_u8(result, carry, true, overflow);
         Ok(())
