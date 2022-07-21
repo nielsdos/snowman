@@ -19,6 +19,8 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
+use crate::heap::Heap;
+use crate::segment_bump_allocator::SegmentBumpAllocator;
 
 #[macro_use]
 extern crate num_derive;
@@ -47,6 +49,8 @@ mod screen;
 mod two_d;
 mod util;
 mod window_manager;
+mod heap;
+mod segment_bump_allocator;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -304,6 +308,7 @@ fn process_module_reference_table(
     executable: &Executable,
     offset_to_module_reference_table: usize,
     module_reference_count: u16,
+    segment_bump_allocator: &mut SegmentBumpAllocator,
 ) -> Result<ModuleReferenceTable, ExecutableFormatError> {
     let offset_to_imported_name_table = executable.read_u16(0x2A)? as usize;
 
@@ -325,28 +330,29 @@ fn process_module_reference_table(
             String::from_utf8_lossy(module_name)
         );
 
+        let flat_address = (segment_bump_allocator.allocate(0x10_000).ok_or(ExecutableFormatError::Memory)? as u32) * 0x10;
         if module_name == b"KERNEL" {
             module_reference_table
                 .modules
-                .push(Box::new(KernelModule::new(0x10 * 0x1000))); // TODO: better address
+                .push(Box::new(KernelModule::new(flat_address)));
         } else if module_name == b"USER" {
             module_reference_table.user_module_index = Some(module_reference_table.modules.len());
             module_reference_table
                 .modules
-                .push(Box::new(UserModule::new(0x10 * 0x2000))); // TODO: better address
+                .push(Box::new(UserModule::new(flat_address)));
         } else if module_name == b"GDI" {
             module_reference_table
                 .modules
-                .push(Box::new(GdiModule::new(0x10 * 0x8000))); // TODO: better address
+                .push(Box::new(GdiModule::new(flat_address)));
         } else if module_name == b"KEYBOARD" {
             module_reference_table
                 .modules
-                .push(Box::new(KeyboardModule::new(0x10 * 0x9000))); // TODO: better address
+                .push(Box::new(KeyboardModule::new(flat_address)));
         } else {
             // TODO
             module_reference_table
                 .modules
-                .push(Box::new(DummyModule::new(0x10 * 0x7000))); // TODO: better address
+                .push(Box::new(DummyModule::new(flat_address)));
         }
     }
 
@@ -437,25 +443,26 @@ fn perform_relocations(
     module_reference_table: &ModuleReferenceTable,
     entry_table: &EntryTable,
     segment: &Segment,
-) -> Result<(), EmulatorError> {
+    chosen_segments: &[u16],
+) -> Result<(), ExecutableFormatError> {
     if let Some(relocations) = segment.relocations.as_ref() {
         for relocation in relocations {
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
                     // Relocate kernel system call
                     let module =
-                        module_reference_table.module(import.index_into_module_reference_table)?;
+                        module_reference_table.module(import.index_into_module_reference_table).map_err(|_| ExecutableFormatError::Memory)?;
                     let segment_and_offset = module.base_module().procedure(
                         memory,
                         import.procedure_ordinal_number,
                         module.argument_bytes_of_procedure(import.procedure_ordinal_number),
-                    )?;
+                    ).map_err(|_| ExecutableFormatError::Memory)?;
 
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
                         if relocation.source_type == 3 {
-                            memory.write_u16(flat_address, segment_and_offset.offset)?;
-                            memory.write_u16(flat_address + 2, segment_and_offset.segment)?;
+                            memory.write_u16(flat_address, segment_and_offset.offset).map_err(|_| ExecutableFormatError::Memory)?;
+                            memory.write_u16(flat_address + 2, segment_and_offset.segment).map_err(|_| ExecutableFormatError::Memory)?;
                         } else {
                             // TODO
                             println!("other source type {}", relocation.source_type);
@@ -469,32 +476,19 @@ fn perform_relocations(
                         let ordinal_index_into_entry_table = internal_ref.parameter;
                         let entry = entry_table
                             .get(ordinal_index_into_entry_table)
-                            .ok_or(EmulatorError::OutOfBounds)?;
-
-                        // TODO: this is hardcoded
-                        let segment = if entry.segment_number == 1 {
-                            0u16
-                        } else {
-                            todo!()
-                        };
-                        (segment, entry.offset)
+                            .ok_or(ExecutableFormatError::Memory)?;
+                        (chosen_segments[(entry.segment_number - 1) as usize], entry.offset)
                     } else {
-                        // TODO: this is hardcoded
-                        let segment = if internal_ref.segment_number == 1 {
-                            0u16
-                        } else {
-                            todo!()
-                        };
-                        (segment, internal_ref.parameter)
+                        (chosen_segments[(internal_ref.segment_number - 1) as usize], internal_ref.parameter)
                     };
 
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
 
                         if relocation.source_type == 2 {
-                            memory.write_u16(flat_address, segment)?;
+                            memory.write_u16(flat_address, segment).map_err(|_| ExecutableFormatError::Memory)?;
                         } else if relocation.source_type == 5 {
-                            memory.write_u16(flat_address, offset_within_segment)?;
+                            memory.write_u16(flat_address, offset_within_segment).map_err(|_| ExecutableFormatError::Memory)?;
                         } else {
                             // TODO: invalid?
                         }
@@ -544,6 +538,15 @@ fn process_resource_table(
             "type id {:x} -> {}",
             type_id, number_of_resources_for_this_type
         );
+
+        if (type_id & 0x8000) == 0 {
+            let string_offset = type_id as usize;
+            let string_length = executable.read_u8(string_offset)?;
+            let string_slice = executable.slice(string_offset + 1, string_length as usize)?;
+            let string = HeapByteString::from(string_slice.into());
+            println!("{:?}", string);
+            //assert!(false);
+        }
 
         // two fields of above, and 4 reserved bytes
         offset += 8;
@@ -602,8 +605,11 @@ fn process_file_ne(
     validate_application_flags(executable)?;
     validate_target_operating_system(executable)?;
 
+    let mut segment_bump_allocator = SegmentBumpAllocator::new();
+
     let offset_to_entry_table = executable.read_u16(0x04)? as usize;
     let entry_table_bytes = executable.read_u16(0x06)? as usize;
+    let stack_initial_size = executable.read_u16(0x12)? as u32;
     let offset_to_resource_table = executable.read_u16(0x24)? as usize;
     let offset_to_resident_name_table = executable.read_u16(0x26)? as usize;
     let segment_table_segment_count = executable.read_u16(0x1C)? as usize;
@@ -623,6 +629,7 @@ fn process_file_ne(
         executable,
         offset_to_module_reference_table,
         module_reference_count,
+        &mut segment_bump_allocator,
     )?;
     let entry_table = process_entry_table(executable, offset_to_entry_table, entry_table_bytes)?;
     let resource_table = if offset_to_resource_table == offset_to_resident_name_table {
@@ -663,52 +670,42 @@ fn process_file_ne(
     let mut memory = Memory::new();
 
     // Setup default trampolines
-    debug!("Setup default trampoline");
     for module in &module_reference_table.modules {
         module
             .base_module()
             .write_syscall_proc_return_trampoline(&mut memory)
             .map_err(|_| ExecutableFormatError::Memory)?;
     }
-    debug!("Setup default trampoline done");
 
-    // TODO: handle all segments (including 0 segment rules)
-    let data_segment = &segment_table[ds as usize - 1];
-    let code_segment = &segment_table[cs as usize - 1];
-    let code_bytes = executable.slice(
-        code_segment.logical_sector_offset as usize,
-        code_segment.length_of_segment_in_file as usize,
-    )?;
-    let data_bytes = executable.slice(
-        data_segment.logical_sector_offset as usize,
-        data_segment.length_of_segment_in_file as usize,
-    )?;
-    debug!("Copy segments");
-    memory
-        .copy_from(code_bytes, 0)
-        .map_err(|_| ExecutableFormatError::Memory)?; // TODO: code offset & segment
-    memory
-        .copy_from(data_bytes, 0x123 * 0x10)
-        .map_err(|_| ExecutableFormatError::Memory)?; // TODO: data offset & segment
-    debug!("Copy segments done");
-    debug!("Perform relocations");
-    perform_relocations(
-        &mut memory,
-        0,
-        &module_reference_table,
-        &entry_table,
-        code_segment,
-    )
-    .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
-    perform_relocations(
-        &mut memory,
-        0x1230,
-        &module_reference_table,
-        &entry_table,
-        data_segment,
-    )
-    .map_err(|_| ExecutableFormatError::Memory)?; // TODO: also other relocations necessary
-    debug!("Perform relocations done");
+    // TODO: handle 0 segment rules
+    // This allocates a place in memory for each segment, and copies their memory.
+    let mut chosen_segments = Vec::with_capacity(segment_table.len());
+    for segment in &segment_table {
+        let segment_bytes = executable.slice(
+            segment.logical_sector_offset as usize,
+            segment.length_of_segment_in_file as usize,
+        )?;
+        let segment_selector = segment_bump_allocator.allocate(segment.minimum_allocation_size as usize).ok_or(ExecutableFormatError::Memory)?;
+        let flat_address = segment_selector as u32 * 0x10;
+        memory
+            .copy_from(segment_bytes, flat_address as usize)
+            .map_err(|_| ExecutableFormatError::Memory)?;
+        chosen_segments.push(segment_selector);
+    }
+
+    for (segment, &selector) in segment_table.iter().zip(&chosen_segments) {
+        perform_relocations(&mut memory, selector as u32 * 0x10, &module_reference_table, &entry_table, segment, &chosen_segments)?;
+    }
+
+    // Setup SP and heap pointer now that every offset and segment is known.
+    let ds_segment_end = (segment_table[ds as usize - 1].minimum_allocation_size + 1) & !1;
+    let ds_stack_end = ds_segment_end + stack_initial_size;
+    let heap_size_left = 0xFFFEu32.saturating_sub(ds_stack_end);
+    let sp = if sp == 0 {
+        ds_stack_end as u16
+    } else {
+        sp
+    };
 
     let button_wnd_proc = module_reference_table
         .user_module_index
@@ -716,20 +713,22 @@ fn process_file_ne(
         .and_then(|user_module_index| {
             module_reference_table.modules[user_module_index]
                 .base_module()
-                .procedure(&mut memory, 0xffff, 10)
+                .procedure(&mut memory, 0xFFFF, 10)
                 .map_err(|_| ExecutableFormatError::Memory)
         })?;
 
-    // TODO: don't do this here, I'm just testing stuff. Also don't hardcode this!
+    // TODO: move the actual execution somewhere else
+    let local_heap = Heap::new(heap_size_left as u16, ds_stack_end as u16);
     let message_queue = MessageQueue::new();
-    let objects = RwLock::new(ObjectEnvironment::new(window_manager));
-    let emulated_kernel = EmulatedKernel::new();
+    let objects = RwLock::new(ObjectEnvironment::new(window_manager, local_heap));
+    let emulated_kernel = EmulatedKernel::new(&objects);
     let emulated_user =
         EmulatedUser::new(&objects, &message_queue, resource_table, button_wnd_proc);
     let emulated_gdi = EmulatedGdi::new(&objects);
     let emulated_keyboard = EmulatedKeyboard::new();
+    println!("{:?}", chosen_segments);
     let mut emulator = Emulator::new(
-        Registers::new(0x123, 0, ip),
+        Registers::new(chosen_segments[ds as usize - 1], chosen_segments[cs as usize - 1], ip, sp),
         memory,
         emulated_kernel,
         emulated_user,
