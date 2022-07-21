@@ -17,8 +17,10 @@ pub struct SegmentAndOffset {
 
 impl Memory {
     pub fn new() -> Self {
+        let mut bytes =  Box::new([0; MEMORY_SIZE]);
+        bytes.fill(0x42);
         Self {
-            bytes: Box::new([0; MEMORY_SIZE]),
+            bytes,
         }
     }
 
