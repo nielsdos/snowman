@@ -6,6 +6,8 @@ use crate::object_environment::{GdiObject, GdiSelectionObjectType, Pen};
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
+use crate::bitmap::Color;
+use crate::two_d::Point;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
@@ -129,21 +131,31 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn muldiv(&self, a: u16, b: u16, c: u16) -> Result<ReturnValue, EmulatorError> {
-        let mul = (a as u32) * (b as u32);
+    fn muldiv(&self, a: i16, b: i16, c: i16) -> Result<ReturnValue, EmulatorError> {
+        let mul = (a as i32) * (b as i32);
         // Add half the denominator for rounding
-        let mul_with_half_denominator = mul.wrapping_add((c as u32) >> 1);
+        let mul_with_half_denominator = if mul < 0 {
+            mul.wrapping_sub((c as i32) / 2)
+        } else {
+            mul.wrapping_add((c as i32) / 2)
+        };
         let result = mul_with_half_denominator
-            .checked_div(c as u32)
-            .and_then(|result| u16::try_from(result).ok())
-            .unwrap_or(0xffff);
+            .checked_div(c as i32)
+            .and_then(|result| i16::try_from(result).ok())
+            .unwrap_or(-1);
         println!("MULDIV: {} {} {} = {}", a, b, c, result);
-        Ok(ReturnValue::U16(result))
+        Ok(ReturnValue::U16(result as u16))
     }
 
     #[api_function]
     fn set_bk_mode(&self, hdc: Handle, mode: u16) -> Result<ReturnValue, EmulatorError> {
         println!("SET BK MODE: {:?} {}", hdc, mode);
+        match self.read_objects().gdi.get(hdc) {
+            Some(GdiObject::DC(_)) => {},
+            _ => {
+                println!("Not a DC???");
+            }
+        };
         Ok(ReturnValue::U16(1)) // TODO: old bg mode
     }
 
@@ -166,9 +178,37 @@ impl<'a> EmulatedGdi<'a> {
 
     #[api_function]
     fn rectangle(&self, hdc: Handle, left: i16, top: i16, right: i16, bottom: i16) -> Result<ReturnValue, EmulatorError> {
-        println!("{:?} {} {} {} {}", hdc, left, top, right, bottom);
+        println!("RECTANGLE: {:?} {} {} {} {}", hdc, left, top, right, bottom);
+        // TODO
+        Ok(ReturnValue::U16(1))
+    }
 
-        assert!(false);
+    #[api_function]
+    fn move_to(&self, hdc: Handle, x: i16, y: i16) -> Result<ReturnValue, EmulatorError> {
+        match self.write_objects().gdi.get_mut(hdc) {
+            Some(GdiObject::DC(dc)) => {
+                dc.move_to(x, y);
+                Ok(ReturnValue::U16(1))
+            }
+            _ => Ok(ReturnValue::U16(0))
+        }
+    }
+
+    #[api_function]
+    fn line_to(&self, hdc: Handle, x: i16, y: i16) -> Result<ReturnValue, EmulatorError> {
+        self.read_objects().with_paint_bitmap_for(hdc, &|mut bitmap| {
+            // TODO: pen & fallibility
+            bitmap.line_to(Point::new(x, y), &Pen {
+                width: 1,
+                color: Color(0, 0, 0),
+            });
+        });
+        Ok(ReturnValue::U16(1))
+    }
+
+    #[api_function]
+    fn set_rop2(&self, hdc: Handle, rop2: u16) -> Result<ReturnValue, EmulatorError> {
+        println!("SET ROP2 {:?} {:x}", hdc, rop2);
         Ok(ReturnValue::U16(0))
     }
 
@@ -179,6 +219,9 @@ impl<'a> EmulatedGdi<'a> {
     ) -> Result<ReturnValue, EmulatorError> {
         match nr {
             2 => self.__api_set_bk_mode(emulator_accessor),
+            4 => self.__api_set_rop2(emulator_accessor),
+            19 => self.__api_line_to(emulator_accessor),
+            20 => self.__api_move_to(emulator_accessor),
             27 => self.__api_rectangle(emulator_accessor),
             45 => self.__api_select_object(emulator_accessor),
             53 => self.__api_create_dc(emulator_accessor),

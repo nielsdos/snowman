@@ -1,10 +1,11 @@
-use crate::bitmap::Color;
+use crate::bitmap::{BitmapView, Color};
 use crate::handle_table::{Handle, HandleTable};
 use crate::memory::SegmentAndOffset;
 use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use crate::heap::Heap;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,
@@ -19,7 +20,8 @@ pub enum UserObject {
 
 pub struct DeviceContext {
     pub bitmap_window_identifier: WindowIdentifier,
-    pub translation: Point,
+    pub bitmap_translation: Point,
+    pub position: Point,
     pub selected_brush: Handle,
     pub selected_pen: Handle,
 }
@@ -48,6 +50,7 @@ pub struct ObjectEnvironment<'a> {
     pub user: HandleTable<UserObject>,
     pub gdi: HandleTable<GdiObject>,
     pub window_manager: &'a RwLock<WindowManager>,
+    pub local_heap: Heap,
 }
 
 impl UserWindow {
@@ -62,7 +65,7 @@ impl UserWindow {
 }
 
 impl<'a> ObjectEnvironment<'a> {
-    pub fn new(window_manager: &'a RwLock<WindowManager>) -> Self {
+    pub fn new(window_manager: &'a RwLock<WindowManager>, local_heap: Heap) -> Self {
         let mut gdi = HandleTable::new();
 
         // Stock objects
@@ -94,6 +97,7 @@ impl<'a> ObjectEnvironment<'a> {
             user: HandleTable::new(),
             gdi,
             window_manager,
+            local_heap,
         }
     }
 
@@ -103,6 +107,21 @@ impl<'a> ObjectEnvironment<'a> {
 
     pub fn write_window_manager(&self) -> RwLockWriteGuard<WindowManager> {
         self.window_manager.write().unwrap()
+    }
+
+    pub fn with_paint_bitmap_for(
+        &self,
+        h_dc: Handle,
+        f: &dyn Fn(BitmapView),
+    ) {
+        if let Some(GdiObject::DC(device_context)) = self.gdi.get(h_dc) {
+            if let Some(bitmap) = self
+                .write_window_manager()
+                .paint_bitmap_for_dc(device_context)
+            {
+                f(bitmap)
+            }
+        }
     }
 }
 
@@ -121,5 +140,10 @@ impl DeviceContext {
             },
             GdiSelectionObjectType::Invalid => Handle::null(),
         }
+    }
+
+    pub fn move_to(&mut self, x: i16, y: i16) {
+        self.position.x = x;
+        self.position.y = y;
     }
 }

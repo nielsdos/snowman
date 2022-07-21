@@ -115,7 +115,10 @@ impl WindowManager {
 
     pub fn paint_bitmap_for_dc(&mut self, dc: &DeviceContext) -> Option<BitmapView> {
         self.paint_bitmap_for(dc.bitmap_window_identifier)
-            .map(|bitmap| BitmapView::new(bitmap, dc.translation))
+            .map(|bitmap| {
+                bitmap.move_to(dc.position);
+                BitmapView::new(bitmap, dc.bitmap_translation)
+            })
     }
 
     pub fn position_of(&self, identifier: WindowIdentifier) -> Option<Point> {
@@ -138,8 +141,8 @@ impl WindowManager {
         self.windows.get(&identifier).map(|window| Rect {
             top: window.position.y,
             left: window.position.x,
-            right: window.width,
-            bottom: window.height,
+            right: window.width.wrapping_add(window.position.x),
+            bottom: window.height.wrapping_add(window.position.y),
         })
     }
 }

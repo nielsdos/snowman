@@ -1,16 +1,25 @@
+use std::sync::{RwLock, RwLockWriteGuard};
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::constants::WinFlags;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::Handle;
 use crate::registers::Registers;
-use crate::{debug, debug_print_null_terminated_string, EmulatorError};
+use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment};
 use syscall::api_function;
 
-pub struct EmulatedKernel {}
+pub struct EmulatedKernel<'a> {
+    objects: &'a RwLock<ObjectEnvironment<'a>>,
+}
 
-impl EmulatedKernel {
-    pub fn new() -> Self {
-        Self {}
+impl<'a> EmulatedKernel<'a> {
+    pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
+        Self {
+            objects,
+        }
+    }
+
+    fn write_objects(&self) -> RwLockWriteGuard<ObjectEnvironment<'a>> {
+        self.objects.write().unwrap()
     }
 
     #[api_function]
@@ -20,18 +29,32 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn local_alloc(&self, _flags: u16, _size: u16) -> Result<ReturnValue, EmulatorError> {
-        // TODO: this now always fails by returning NULL
-        println!("{:x} {:x}", _flags, _size);
-        //assert!(false);
-        Ok(ReturnValue::U16(0))
+    fn local_alloc(&self, mut accessor: EmulatorAccessor, flags: u16, size: u16) -> Result<ReturnValue, EmulatorError> {
+        let is_fixed = (flags & 0b10) == 0;
+        let should_zero = (flags & 0x40) > 0;
+
+        // TODO: should select a different local heap based on DS
+        let result = self.write_objects().local_heap.allocate(is_fixed, size);
+        if let Ok((return_value, pointer)) = result {
+            if should_zero {
+                let flat_address = accessor.regs().flat_address(Registers::REG_DS, pointer);
+                accessor.memory_mut().zero(flat_address, flat_address + (size as u32))?;
+            }
+
+            Ok(ReturnValue::U16(return_value))
+        } else {
+            Ok(ReturnValue::U16(0))
+        }
     }
 
     #[api_function]
-    fn local_free(&self, _handle: Handle) -> Result<ReturnValue, EmulatorError> {
-        // TODO
-        //assert!(false);
-        Ok(ReturnValue::U16(0))
+    fn local_free(&self, handle_or_pointer: u16) -> Result<ReturnValue, EmulatorError> {
+        if handle_or_pointer == 0 {
+            Ok(ReturnValue::U16(0))
+        } else {
+            // TODO: should select a different local heap based on DS
+            Ok(ReturnValue::U16(self.write_objects().local_heap.deallocate(handle_or_pointer)))
+        }
     }
 
     #[api_function]
@@ -45,7 +68,7 @@ impl EmulatedKernel {
         let regs = accessor.regs_mut();
 
         // TODO: hardcoded to inittask rn
-        let es = 0x10;
+        let es = regs.read_segment(Registers::REG_DS);
         regs.write_gpr_16(Registers::REG_BX, 0x1234); // TODO: offset into command line
         regs.write_gpr_16(Registers::REG_CX, 0); // TODO: stack limit
         regs.write_gpr_16(Registers::REG_DX, 0); // TODO: nCmdShow
@@ -117,6 +140,7 @@ impl EmulatedKernel {
     #[api_function]
     fn find_resource(
         &self,
+        accessor: EmulatorAccessor,
         module: Handle,
         name: Pointer,
         _type: Pointer,
@@ -125,6 +149,8 @@ impl EmulatedKernel {
             "[kernel] FIND RESOURCE {:x} {:x} {:?}",
             _type.0, name.0, module
         );
+        debug_print_null_terminated_string(&accessor, name.0);
+        debug_print_null_terminated_string(&accessor, _type.0);
         // TODO: this returns a hardcoded handle
         Ok(ReturnValue::U16(1))
     }
@@ -136,8 +162,9 @@ impl EmulatedKernel {
         res_info: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
         debug!("[kernel] LOAD RESOURCE {:?} {:?}", module, res_info);
+        //assert!(false);
         // TODO: this returns a hardcoded handle
-        Ok(ReturnValue::U16(1))
+        Ok(ReturnValue::U16(0xDEAD))
     }
 
     #[api_function]
@@ -159,9 +186,19 @@ impl EmulatedKernel {
     }
 
     #[api_function]
-    fn global_lock(&self, _h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn global_lock(&self, mut accessor: EmulatorAccessor, _h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+        println!("{:?}", _h_mem);
+        let segment = 0xF000;
+        let offset = 0;
+
+        // TODO: hack
+        //for (i, entry) in data.iter().enumerate() {
+        //    let entry = *entry;
+        //    accessor.memory_mut().write_u16(0xF000 * 0x10 + (i as u32 * 2), (entry >> 8) | ((entry & 0xFF) << 8))?;
+        //}
+
         // TODO
-        Ok(ReturnValue::U32(0))
+        Ok(ReturnValue::U32((segment << 16) | offset))
     }
 
     #[api_function]
@@ -203,8 +240,8 @@ impl EmulatedKernel {
         debug_print_null_terminated_string(&accessor, default.0);
         // TODO: honor size etc etc
         let number_of_bytes_copied = accessor.copy_string(default.0, returned_string.0)?;
-        // TODO: hack to force a certain option
-        if key_name.0 == 0x1258 {
+        // TODO: hack to force an option that causes the clock to run in analog mode
+        if key_name.0 == 0x52a38 {
             for (i, c) in b"1,0,0,0,0,0".iter().enumerate() {
                 accessor.memory_mut().write_8(returned_string.0 + i as u32, *c)?;
             }
@@ -219,13 +256,14 @@ impl EmulatedKernel {
         str1: Pointer,
         str2: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
-        // todo: wsprintf precies afgekapt?
         let str1_length = accessor.strlen(str1.0)?;
         let str1_end = str1.advanced(str1_length as u32);
+        println!("STR2 address: {:x}", str2.0);
+        debug_print_null_terminated_string(&accessor, str2.0);
         accessor.copy_string(str2.0, str1_end.0)?;
         println!("LSTRCAT result: ");
         debug_print_null_terminated_string(&accessor, str1.0);
-        Ok(ReturnValue::U16(0))
+        Ok(ReturnValue::U32(str1.0))
     }
 
     #[api_function]

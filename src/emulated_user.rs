@@ -1,6 +1,6 @@
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::atom_table::AtomTable;
-use crate::bitmap::{BitmapView, Color};
+use crate::bitmap::Color;
 use crate::byte_string::{ByteString, HeapByteString};
 use crate::constants::{ClassStyles, MessageType, SystemColors};
 use crate::emulator_accessor::EmulatorAccessor;
@@ -45,6 +45,70 @@ pub struct EmulatedUser<'a> {
     window_classes: HashMap<ByteString<'a>, WindowClass<'a>>,
     objects: &'a RwLock<ObjectEnvironment<'a>>,
     message_queue: &'a MessageQueue,
+}
+
+struct SprintfMachine<'a> {
+    accessor: EmulatorAccessor<'a>,
+    current_format_address: u32,
+    current_dest_address: u32,
+    characters_written: u16,
+}
+
+impl<'a> SprintfMachine<'a> {
+    pub fn new(accessor: EmulatorAccessor<'a>, format_string_ptr: Pointer, output_buffer_ptr: Pointer) -> Self {
+        Self {
+            accessor,
+            current_format_address: format_string_ptr.0,
+            current_dest_address: output_buffer_ptr.0,
+            characters_written: 0,
+        }
+    }
+
+    pub fn read_character(&mut self) -> Result<u8, EmulatorError> {
+        let character = self.accessor.memory().read_8(self.current_format_address);
+        self.current_format_address += 1;
+        character
+    }
+
+    pub fn write_character(&mut self, character: u8) -> Result<(), EmulatorError> {
+        let result = self.accessor.memory_mut().write_8(self.current_dest_address, character)?;
+        self.characters_written += 1;
+        self.current_dest_address += 1;
+        Ok(())
+    }
+
+    pub fn process(&mut self) -> Result<ReturnValue, EmulatorError> {
+        let original_output_ptr = self.current_dest_address;
+        let mut current_arg_offset = 4;
+        // TODO: overflow protection?
+        loop {
+            let character = self.read_character()?;
+            if character != b'%' {
+                // Regular character or NULL byte
+                self.write_character(character)?;
+                if character == 0 {
+                    break;
+                }
+            } else {
+                let character = self.read_character()?;
+                if character == b'c' {
+                    let character = self.accessor.word_argument(current_arg_offset)? as u8;
+                    self.write_character(character);
+                    current_arg_offset += 1;
+                } else if character == b's' {
+                    let str_ptr = self.accessor.pointer_argument(current_arg_offset)?;
+                    let len = self.accessor.copy_string(str_ptr, self.current_dest_address)?;
+                    self.characters_written += len;
+                    self.current_dest_address += len as u32;
+                    current_arg_offset += 2;
+                } else {
+                    todo!();
+                }
+            }
+        }
+        debug_print_null_terminated_string(&self.accessor, original_output_ptr);
+        Ok(ReturnValue::U16(self.characters_written - 1))
+    }
 }
 
 impl<'a> EmulatedUser<'a> {
@@ -147,8 +211,6 @@ impl<'a> EmulatedUser<'a> {
             let proc = user_window.proc;
             let mut objects = self.write_objects();
             if let Some(window_handle) = objects.user.register(UserObject::Window(user_window)) {
-                println!("window_handle = {:?}", window_handle);
-
                 if h_wnd_parent != Handle::null() {
                     if let Some(UserObject::Window(parent_window)) =
                         objects.user.get_mut(h_wnd_parent)
@@ -160,7 +222,7 @@ impl<'a> EmulatedUser<'a> {
                     }
                 }
 
-                objects.write_window_manager().create_window(
+                let (width, height) = objects.write_window_manager().create_window(
                     WindowIdentifier {
                         window_handle,
                         process_id: self.process_id(),
@@ -173,14 +235,27 @@ impl<'a> EmulatedUser<'a> {
                 );
 
                 // TODO: l_param should get a pointer to a CREATESTRUCT that contains info about the window being created
+                // TODO: this actually needs to come via the def window proc, (see remark at https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-size)
+                self.message_queue.send(WindowMessage {
+                    h_wnd: window_handle,
+                    message: MessageType::Size,
+                    w_param: 0,
+                    l_param: ((height as u16 as u32) << 16) | (width as u16 as u32),
+                    time: 0,
+                    point: Point::origin(),
+                });
+
                 self.call_wndproc_sync(
                     &mut accessor,
                     proc,
                     window_handle,
                     MessageType::Create.into(),
                     0,
-                    0,
+                    (0xD000 << 4) | 0,
                 )?;
+
+
+
                 return Ok(ReturnValue::DelayedU16(window_handle.as_u16()));
             }
         }
@@ -222,6 +297,14 @@ impl<'a> EmulatedUser<'a> {
         if success {
             // TODO: iirc this should only be done when the window was not visible yet and now became visible
             //       ... And if the message queue is empty? (not sure about this)
+            self.message_queue.send(WindowMessage {
+                h_wnd,
+                message: MessageType::ShowWindow,
+                w_param: 1,
+                l_param: 0,
+                time: 0,
+                point: Point::origin(),
+            });
 
             // TODO: also what about child windows?
             self.message_queue.send(WindowMessage {
@@ -272,10 +355,11 @@ impl<'a> EmulatedUser<'a> {
     fn invalidate_rect(
         &self,
         accessor: EmulatorAccessor,
-        _h_wnd: Handle,
+        h_wnd: Handle,
         _rect: Pointer,
         _erase: u16,
     ) -> Result<ReturnValue, EmulatorError> {
+        println!("{:?} {:?}", h_wnd, accessor.read_rect(_rect.0));
         // TODO
         Ok(ReturnValue::U16(0))
     }
@@ -426,15 +510,13 @@ impl<'a> EmulatedUser<'a> {
         if let Some(string) = self.resource_table.strings_resources.get(&uid) {
             let string = string.as_slice();
             let length = string.len();
-            let amount_of_bytes_to_copy = if buffer_max == 0 {
-                length
-            } else {
-                (buffer_max as usize).min(length)
-            };
+            // TODO: handle buffer_max == 0 special case (see docs)
+            let amount_of_bytes_to_copy = (buffer_max as usize).min(length);
 
             accessor
                 .memory_mut()
                 .copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
+            accessor.memory_mut().write_8(buffer.0 + (amount_of_bytes_to_copy as u32), 0)?;
 
             debug_print_null_terminated_string(&accessor, buffer.0);
             // String lengths from the resource table will fit in 16 bits, because their length
@@ -481,7 +563,7 @@ impl<'a> EmulatedUser<'a> {
             Ok(ReturnValue::U16(1))
         } else if metric == 30 || metric == 31 {
             // TODO: this is just to let the system continue
-            Ok(ReturnValue::U16(16))
+            Ok(ReturnValue::U16(18))
         } else if metric == 32 || metric == 33 {
             // TODO: this is just to let the system continue
             Ok(ReturnValue::U16(4))
@@ -496,17 +578,13 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn wsprintf(
         &self,
-        mut accessor: EmulatorAccessor,
+        accessor: EmulatorAccessor,
         format_string_ptr: Pointer,
         output_buffer_ptr: Pointer,
     ) -> Result<ReturnValue, EmulatorError> {
-        print!("WSPRINTF FORMAT: ");
         debug_print_null_terminated_string(&accessor, format_string_ptr.0);
-        // TODO: implement actual sprintf, now it just copies
-        accessor.copy_string(format_string_ptr.0, output_buffer_ptr.0)?;
-        print!("WSPRINTF OUTPUT: ");
-        debug_print_null_terminated_string(&accessor, format_string_ptr.0);
-        Ok(ReturnValue::U16(0))
+        let mut machine = SprintfMachine::new(accessor, format_string_ptr, output_buffer_ptr);
+        machine.process()
     }
 
     #[api_function]
@@ -541,7 +619,7 @@ impl<'a> EmulatedUser<'a> {
             if let Some(paint) = self.begin_paint(h_wnd) {
                 let objects = self.read_objects();
                 let containing_rect = self.get_client_rect(h_wnd, &objects).unwrap_or(Rect::zero());
-                self.with_paint_bitmap_for(paint.hdc, &objects, &|mut bitmap| {
+                objects.with_paint_bitmap_for(paint.hdc, &|mut bitmap| {
                     // Black rounded frame
                     bitmap.draw_horizontal_line(
                         1,
@@ -664,7 +742,8 @@ impl<'a> EmulatedUser<'a> {
                 };
                 let dc = DeviceContext {
                     bitmap_window_identifier,
-                    translation,
+                    bitmap_translation: translation,
+                    position: Point::origin(),
                     selected_brush: Handle::null(),
                     selected_pen: Handle::null(),
                 };
@@ -747,22 +826,6 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(self.end_paint(_h_wnd, handle.into())))
     }
 
-    fn with_paint_bitmap_for(
-        &self,
-        h_dc: Handle,
-        objects: &RwLockReadGuard<ObjectEnvironment>,
-        f: &dyn Fn(BitmapView),
-    ) {
-        if let Some(GdiObject::DC(device_context)) = objects.gdi.get(h_dc) {
-            if let Some(bitmap) = objects
-                .write_window_manager()
-                .paint_bitmap_for_dc(device_context)
-            {
-                f(bitmap)
-            }
-        }
-    }
-
     #[api_function]
     fn fill_rect(
         &self,
@@ -772,9 +835,10 @@ impl<'a> EmulatedUser<'a> {
         h_brush: Handle,
     ) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect.0)?;
+        println!("FILL RECT {:?}", rect);
         let objects = self.read_objects();
         if let Some(GdiObject::SolidBrush(color)) = objects.gdi.get(h_brush) {
-            self.with_paint_bitmap_for(h_dc, &objects, &|mut bitmap| {
+            objects.with_paint_bitmap_for(h_dc, &|mut bitmap| {
                 bitmap.fill_rectangle(rect, *color)
             });
             Ok(ReturnValue::U16(1))
@@ -822,6 +886,7 @@ impl<'a> EmulatedUser<'a> {
                     window_handle: h_wnd,
                 })
         {
+            println!("Rect is {:?}", rect);
             accessor.write_rect(rect_ptr.0, &rect)?;
             Ok(ReturnValue::U16(1))
         } else {
@@ -837,6 +902,7 @@ impl<'a> EmulatedUser<'a> {
         };
         if let Some(rect) = rect {
             accessor.write_rect(rect_ptr.0, &rect)?;
+            println!("GET CLIENT RECT {:?}", rect);
             Ok(ReturnValue::U16(1))
         } else {
             Ok(ReturnValue::U16(0))
@@ -929,13 +995,23 @@ impl<'a> EmulatedUser<'a> {
     #[api_function]
     fn inflate_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, dx: i16, dy: i16) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect_ptr.0)?.inflate(dx, dy);
+        println!("RESULTING RECT {:?}", rect);
         accessor.write_rect(rect_ptr.0, &rect)?;
+        Ok(ReturnValue::U16(1))
+    }
+
+    #[api_function]
+    fn set_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, left: i16, top: i16, right: i16, bottom: i16) -> Result<ReturnValue, EmulatorError> {
+        accessor.write_rect(rect_ptr.0, &Rect {
+            left, top, right, bottom
+        })?;
         Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
     fn offset_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, dx: i16, dy: i16) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect_ptr.0)?.offset(dx, dy);
+        println!("RESULTING RECT {:?} {} {}", rect, dx, dy);
         accessor.write_rect(rect_ptr.0, &rect)?;
         Ok(ReturnValue::U16(1))
     }
@@ -961,6 +1037,7 @@ impl<'a> EmulatedUser<'a> {
             66 => self.__api_internal_get_dc(emulator_accessor),
             68 => self.__api_internal_release_dc(emulator_accessor),
             69 => self.__api_set_cursor(emulator_accessor),
+            72 => self.__api_set_rect(emulator_accessor),
             77 => self.__api_offset_rect(emulator_accessor),
             78 => self.__api_inflate_rect(emulator_accessor),
             81 => self.__api_fill_rect(emulator_accessor),
