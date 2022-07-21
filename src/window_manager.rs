@@ -126,14 +126,12 @@ impl WindowManager {
     }
 
     pub fn client_rect_of(&self, identifier: WindowIdentifier) -> Option<Rect> {
-        self.windows
-            .get(&identifier)
-            .map(|window| Rect {
-                top: 0,
-                left: 0,
-                right: window.width,
-                bottom: window.height,
-            })
+        self.windows.get(&identifier).map(|window| Rect {
+            top: 0,
+            left: 0,
+            right: window.width,
+            bottom: window.height,
+        })
     }
 
     pub fn window_rect_of(&self, identifier: WindowIdentifier) -> Option<Rect> {

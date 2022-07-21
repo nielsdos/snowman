@@ -109,7 +109,7 @@ impl Module for KernelModule {
             129 => 16,
             58 => 18,
             128 => 22,
-            178 => 0 /* TODO: don't know! */,
+            178 => 0, /* TODO: don't know! */
             _ => unimplemented!("procedure {}", procedure),
         }
     }

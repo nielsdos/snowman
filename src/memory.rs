@@ -17,15 +17,14 @@ pub struct SegmentAndOffset {
 
 impl Memory {
     pub fn new() -> Self {
-        let mut bytes =  Box::new([0; MEMORY_SIZE]);
+        let mut bytes = Box::new([0; MEMORY_SIZE]);
         bytes.fill(0x42);
-        Self {
-            bytes,
-        }
+        Self { bytes }
     }
 
     pub fn zero(&mut self, start: u32, end: u32) -> Result<(), EmulatorError> {
-        self.bytes.get_mut(start as usize..end as usize)
+        self.bytes
+            .get_mut(start as usize..end as usize)
             .ok_or(EmulatorError::OutOfBounds)?
             .fill(0);
         Ok(())

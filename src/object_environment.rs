@@ -1,11 +1,11 @@
 use crate::bitmap::{BitmapView, Color};
 use crate::handle_table::{Handle, HandleTable};
+use crate::heap::Heap;
 use crate::memory::SegmentAndOffset;
 use crate::two_d::Point;
 use crate::window_manager::WindowIdentifier;
 use crate::WindowManager;
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
-use crate::heap::Heap;
 
 pub struct UserWindow {
     pub proc: SegmentAndOffset,
@@ -43,7 +43,7 @@ pub enum GdiObject {
     SolidBrush(Color),
     Pen(Pen),
     // TODO: remove me once we have all types
-    Placeholder
+    Placeholder,
 }
 
 pub struct ObjectEnvironment<'a> {
@@ -109,11 +109,7 @@ impl<'a> ObjectEnvironment<'a> {
         self.window_manager.write().unwrap()
     }
 
-    pub fn with_paint_bitmap_for(
-        &self,
-        h_dc: Handle,
-        f: &dyn Fn(BitmapView),
-    ) {
+    pub fn with_paint_bitmap_for(&self, h_dc: Handle, f: &dyn Fn(BitmapView)) {
         if let Some(GdiObject::DC(device_context)) = self.gdi.get(h_dc) {
             if let Some(bitmap) = self
                 .write_window_manager()
@@ -137,7 +133,7 @@ impl DeviceContext {
                 let old = self.selected_pen;
                 self.selected_pen = handle;
                 old
-            },
+            }
             GdiSelectionObjectType::Invalid => Handle::null(),
         }
     }

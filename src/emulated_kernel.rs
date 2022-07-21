@@ -1,10 +1,10 @@
-use std::sync::{RwLock, RwLockWriteGuard};
 use crate::api_helpers::{Pointer, ReturnValue};
 use crate::constants::WinFlags;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::Handle;
 use crate::registers::Registers;
 use crate::{debug, debug_print_null_terminated_string, EmulatorError, ObjectEnvironment};
+use std::sync::{RwLock, RwLockWriteGuard};
 use syscall::api_function;
 
 pub struct EmulatedKernel<'a> {
@@ -13,9 +13,7 @@ pub struct EmulatedKernel<'a> {
 
 impl<'a> EmulatedKernel<'a> {
     pub fn new(objects: &'a RwLock<ObjectEnvironment<'a>>) -> Self {
-        Self {
-            objects,
-        }
+        Self { objects }
     }
 
     fn write_objects(&self) -> RwLockWriteGuard<ObjectEnvironment<'a>> {
@@ -29,7 +27,12 @@ impl<'a> EmulatedKernel<'a> {
     }
 
     #[api_function]
-    fn local_alloc(&self, mut accessor: EmulatorAccessor, flags: u16, size: u16) -> Result<ReturnValue, EmulatorError> {
+    fn local_alloc(
+        &self,
+        mut accessor: EmulatorAccessor,
+        flags: u16,
+        size: u16,
+    ) -> Result<ReturnValue, EmulatorError> {
         let is_fixed = (flags & 0b10) == 0;
         let should_zero = (flags & 0x40) > 0;
 
@@ -38,7 +41,9 @@ impl<'a> EmulatedKernel<'a> {
         if let Ok((return_value, pointer)) = result {
             if should_zero {
                 let flat_address = accessor.regs().flat_address(Registers::REG_DS, pointer);
-                accessor.memory_mut().zero(flat_address, flat_address + (size as u32))?;
+                accessor
+                    .memory_mut()
+                    .zero(flat_address, flat_address + (size as u32))?;
             }
 
             Ok(ReturnValue::U16(return_value))
@@ -53,7 +58,11 @@ impl<'a> EmulatedKernel<'a> {
             Ok(ReturnValue::U16(0))
         } else {
             // TODO: should select a different local heap based on DS
-            Ok(ReturnValue::U16(self.write_objects().local_heap.deallocate(handle_or_pointer)))
+            Ok(ReturnValue::U16(
+                self.write_objects()
+                    .local_heap
+                    .deallocate(handle_or_pointer),
+            ))
         }
     }
 
@@ -186,7 +195,11 @@ impl<'a> EmulatedKernel<'a> {
     }
 
     #[api_function]
-    fn global_lock(&self, mut accessor: EmulatorAccessor, _h_mem: Handle) -> Result<ReturnValue, EmulatorError> {
+    fn global_lock(
+        &self,
+        mut accessor: EmulatorAccessor,
+        _h_mem: Handle,
+    ) -> Result<ReturnValue, EmulatorError> {
         println!("{:?}", _h_mem);
         let segment = 0xF000;
         let offset = 0;
@@ -243,7 +256,9 @@ impl<'a> EmulatedKernel<'a> {
         // TODO: hack to force an option that causes the clock to run in analog mode
         if key_name.0 == 0x52a38 {
             for (i, c) in b"1,0,0,0,0,0".iter().enumerate() {
-                accessor.memory_mut().write_8(returned_string.0 + i as u32, *c)?;
+                accessor
+                    .memory_mut()
+                    .write_8(returned_string.0 + i as u32, *c)?;
             }
         }
         Ok(ReturnValue::U16(number_of_bytes_copied))

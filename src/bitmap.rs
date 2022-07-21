@@ -1,6 +1,6 @@
+use crate::object_environment::Pen;
 use crate::two_d::{Point, Rect};
 use std::ops::{Deref, DerefMut};
-use crate::object_environment::Pen;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Color(pub u8, pub u8, pub u8);
@@ -125,13 +125,25 @@ impl Bitmap {
         self.pixels[index] = color;
     }
 
-    fn draw_horizontal_line_unclipped_untranslated(&mut self, x_start: i16, y: i16, x_to: i16, color: Color) {
+    fn draw_horizontal_line_unclipped_untranslated(
+        &mut self,
+        x_start: i16,
+        y: i16,
+        x_to: i16,
+        color: Color,
+    ) {
         let start_index = self.index_for(x_start, y);
         let end_index = self.index_for(x_to, y);
         self.pixels[start_index..end_index].fill(color);
     }
 
-    fn draw_vertical_line_unclipped_untranslated(&mut self, x: i16, y_start: i16, y_to: i16, color: Color) {
+    fn draw_vertical_line_unclipped_untranslated(
+        &mut self,
+        x: i16,
+        y_start: i16,
+        y_to: i16,
+        color: Color,
+    ) {
         for y in y_start..y_to {
             let index = self.index_for(x, y);
             self.pixels[index] = color;

@@ -11,9 +11,12 @@ use crate::emulator_error::EmulatorError;
 use crate::memory::Memory;
 use crate::mod_rm::{ModRM, ModRMByte};
 use crate::registers::Registers;
+use crate::util::{
+    add_with_flags, add_with_flags_16, add_with_flags_8, sub_with_flags, sub_with_flags_16,
+    sub_with_flags_8,
+};
 use crate::{debug, EmulatedUser};
 use chrono::{Datelike, Timelike, Weekday};
-use crate::util::{add_with_flags, add_with_flags_16, add_with_flags_8, sub_with_flags, sub_with_flags_16, sub_with_flags_8};
 
 pub struct Emulator<'a> {
     regs: Registers,
@@ -400,7 +403,12 @@ impl<'a> Emulator<'a> {
                 let carry = data != 0;
                 let result = (!data).wrapping_add(1);
                 self.write_mod_rm::<N>(mod_rm, result)?;
-                self.regs.handle_arithmetic_result_u_generic::<N>(result, carry, true, data == 0x8000);
+                self.regs.handle_arithmetic_result_u_generic::<N>(
+                    result,
+                    carry,
+                    true,
+                    data == 0x8000,
+                );
             }
             5 => {
                 // imul, r/m
@@ -408,7 +416,8 @@ impl<'a> Emulator<'a> {
                     let data = self.read_mod_rm_16(mod_rm)? as u32;
                     let result = (self.regs.read_gpr_16(Registers::REG_AX) as u32) * data;
                     self.regs.write_gpr_16(Registers::REG_AX, result as u16);
-                    self.regs.write_gpr_16(Registers::REG_DX, (result >> 16) as u16);
+                    self.regs
+                        .write_gpr_16(Registers::REG_DX, (result >> 16) as u16);
                     self.regs.handle_imul_result_u16(result > 0xFFFF);
                 } else {
                     todo!();
@@ -624,14 +633,16 @@ impl<'a> Emulator<'a> {
                 // inc ...
                 let data = self.read_mod_rm_16(mod_rm)?;
                 let (result, _, overflow) = add_with_flags_16(data, 1);
-                self.regs.handle_arithmetic_result_u16(result, false, false, overflow);
+                self.regs
+                    .handle_arithmetic_result_u16(result, false, false, overflow);
                 self.write_mod_rm_16(mod_rm, result)
             }
             1 => {
                 // dec ...
                 let data = self.read_mod_rm_16(mod_rm)?;
                 let (result, _, overflow) = sub_with_flags_16(data, 1);
-                self.regs.handle_arithmetic_result_u16(result, false, false, overflow);
+                self.regs
+                    .handle_arithmetic_result_u16(result, false, false, overflow);
                 self.write_mod_rm_16(mod_rm, result)
             }
             3 => {
@@ -689,9 +700,11 @@ impl<'a> Emulator<'a> {
 
     fn cmp_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, carry, overflow) = sub_with_flags::<N>(self
-            .regs
-            .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()), self.read_mod_rm::<N>(mod_rm)?);
+        let (result, carry, overflow) = sub_with_flags::<N>(
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+            self.read_mod_rm::<N>(mod_rm)?,
+        );
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, carry, true, overflow);
         Ok(())
@@ -707,8 +720,11 @@ impl<'a> Emulator<'a> {
 
     fn cmp_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, carry, overflow) = sub_with_flags::<N>(self.read_mod_rm::<N>(mod_rm)?, self.regs
-            .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()));
+        let (result, carry, overflow) = sub_with_flags::<N>(
+            self.read_mod_rm::<N>(mod_rm)?,
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+        );
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, carry, true, overflow);
         Ok(())
@@ -720,7 +736,8 @@ impl<'a> Emulator<'a> {
 
     fn cmp_r_imm<const N: usize>(&mut self, reg: u8) -> Result<(), EmulatorError> {
         let immediate = self.read_ip_u_generic::<N>()?;
-        let (result, carry, overflow) = sub_with_flags::<N>(self.regs.read_gpr::<N>(reg), immediate);
+        let (result, carry, overflow) =
+            sub_with_flags::<N>(self.regs.read_gpr::<N>(reg), immediate);
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, carry, true, overflow);
         Ok(())
@@ -737,7 +754,8 @@ impl<'a> Emulator<'a> {
     fn cmp_rm_imm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
         let immediate = self.read_ip_u_generic::<N>()?;
-        let (result, carry, overflow) = sub_with_flags::<N>(self.read_mod_rm::<N>(mod_rm)?, immediate);
+        let (result, carry, overflow) =
+            sub_with_flags::<N>(self.read_mod_rm::<N>(mod_rm)?, immediate);
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, carry, true, overflow);
         Ok(())
@@ -749,9 +767,11 @@ impl<'a> Emulator<'a> {
 
     fn sub_r_rm<const N: usize>(&mut self, extra: u16) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, carry, overflow) = sub_with_flags::<N>(self
-                                                                .regs
-                                                                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()), self.read_mod_rm::<N>(mod_rm)?.wrapping_add(extra));
+        let (result, carry, overflow) = sub_with_flags::<N>(
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+            self.read_mod_rm::<N>(mod_rm)?.wrapping_add(extra),
+        );
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
@@ -774,9 +794,10 @@ impl<'a> Emulator<'a> {
     fn sub_al_imm8_helper(&mut self, extra: u8) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r8_imm8
         let data = self.read_ip_u8()?;
-        let (result, carry, overflow) = sub_with_flags_8(self
-            .regs
-            .read_gpr_lo_8(Registers::REG_AL), data.wrapping_add(extra));
+        let (result, carry, overflow) = sub_with_flags_8(
+            self.regs.read_gpr_lo_8(Registers::REG_AL),
+            data.wrapping_add(extra),
+        );
         self.regs.write_gpr_lo_8(Registers::REG_AL, result);
         self.regs
             .handle_arithmetic_result_u8(result, carry, true, overflow);
@@ -794,9 +815,8 @@ impl<'a> Emulator<'a> {
     fn sub_ax_imm16(&mut self) -> Result<(), EmulatorError> {
         // TODO: generalise with sub_r16_imm16
         let data = self.read_ip_u16()?;
-        let (result, carry, overflow) = sub_with_flags_16(self
-                                                              .regs
-                                                              .read_gpr_16(Registers::REG_AX), data);
+        let (result, carry, overflow) =
+            sub_with_flags_16(self.regs.read_gpr_16(Registers::REG_AX), data);
         self.regs.write_gpr_16(Registers::REG_AX, result);
         self.regs
             .handle_arithmetic_result_u16(result, carry, true, overflow);
@@ -805,9 +825,11 @@ impl<'a> Emulator<'a> {
 
     fn add_rm_r<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, carry, overflow) = add_with_flags::<N>(self
-                                                                .regs
-                                                                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()), self.read_mod_rm::<N>(mod_rm)?);
+        let (result, carry, overflow) = add_with_flags::<N>(
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+            self.read_mod_rm::<N>(mod_rm)?,
+        );
         self.write_mod_rm::<N>(mod_rm, result)?;
         self.regs
             .handle_arithmetic_result_u_generic::<N>(result, carry, true, overflow);
@@ -824,9 +846,11 @@ impl<'a> Emulator<'a> {
 
     fn add_r_rm<const N: usize>(&mut self) -> Result<(), EmulatorError> {
         let mod_rm = self.read_ip_mod_rm::<N>()?;
-        let (result, carry, overflow) = add_with_flags::<N>(self
-            .regs
-            .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()), self.read_mod_rm::<N>(mod_rm)?);
+        let (result, carry, overflow) = add_with_flags::<N>(
+            self.regs
+                .read_gpr::<N>(mod_rm.mod_rm_byte.register_destination()),
+            self.read_mod_rm::<N>(mod_rm)?,
+        );
         self.regs
             .write_gpr::<N>(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs
@@ -840,9 +864,8 @@ impl<'a> Emulator<'a> {
 
     fn add_al_imm8(&mut self) -> Result<(), EmulatorError> {
         let data = self.read_ip_u8()?;
-        let (result, carry, overflow) = add_with_flags_8(self
-                                                             .regs
-                                                             .read_gpr_lo_8(Registers::REG_AL), data);
+        let (result, carry, overflow) =
+            add_with_flags_8(self.regs.read_gpr_lo_8(Registers::REG_AL), data);
         self.regs
             .handle_arithmetic_result_u8(result, carry, true, overflow);
         Ok(())
@@ -850,9 +873,8 @@ impl<'a> Emulator<'a> {
 
     fn add_ax_imm16(&mut self) -> Result<(), EmulatorError> {
         let data = self.read_ip_u16()?;
-        let (result, carry, overflow) = add_with_flags_16(self
-                                                              .regs
-                                                              .read_gpr_16(Registers::REG_AX), data);
+        let (result, carry, overflow) =
+            add_with_flags_16(self.regs.read_gpr_16(Registers::REG_AX), data);
         self.regs
             .handle_arithmetic_result_u16(result, carry, true, overflow);
         Ok(())
@@ -1046,7 +1068,8 @@ impl<'a> Emulator<'a> {
     fn inc16(&mut self, reg: u8) -> Result<(), EmulatorError> {
         let data = self.regs.read_gpr_16(reg);
         let (result, _, overflow) = add_with_flags_16(data, 1);
-        self.regs.handle_arithmetic_result_u16(result, false, false, overflow);
+        self.regs
+            .handle_arithmetic_result_u16(result, false, false, overflow);
         self.regs.write_gpr_16(reg, result);
         Ok(())
     }
@@ -1054,7 +1077,8 @@ impl<'a> Emulator<'a> {
     fn dec16(&mut self, reg: u8) -> Result<(), EmulatorError> {
         let data = self.regs.read_gpr_16(reg);
         let (result, _, overflow) = sub_with_flags_16(data, 1);
-        self.regs.handle_arithmetic_result_u16(result, false, false, overflow);
+        self.regs
+            .handle_arithmetic_result_u16(result, false, false, overflow);
         self.regs.write_gpr_16(reg, result);
         Ok(())
     }
@@ -1079,7 +1103,8 @@ impl<'a> Emulator<'a> {
         let mod_rm = self.read_ip_mod_rm::<16>()?;
         let imm = self.read_ip_i8()?;
         let (result, result_did_carry) = self.read_mod_rm_16(mod_rm)?.overflowing_mul(imm as u16);
-        self.regs.write_gpr_16(mod_rm.mod_rm_byte.register_destination(), result);
+        self.regs
+            .write_gpr_16(mod_rm.mod_rm_byte.register_destination(), result);
         self.regs.handle_imul_result_u16(result_did_carry);
         Ok(())
     }
@@ -1093,10 +1118,11 @@ impl<'a> Emulator<'a> {
             0x87 => self.jcc::<16>(!self.regs.flag_zero() & !self.regs.flag_carry()),
             0x8C => self.jcc::<16>(self.regs.flag_sign() ^ self.regs.flag_overflow()),
             0x8D => self.jcc::<16>(self.regs.flag_sign() == self.regs.flag_overflow()),
-            0x8E => self
-                .jcc::<16>(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x8E => self.jcc::<16>(
+                self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow()),
+            ),
             0x8F => self.jcc::<16>(!self.regs.flag_zero() & !self.regs.flag_sign()),
-            _ => Err(EmulatorError::InvalidOpcode)
+            _ => Err(EmulatorError::InvalidOpcode),
         }
     }
 
@@ -1176,8 +1202,9 @@ impl<'a> Emulator<'a> {
             0x77 => self.jcc::<8>(!self.regs.flag_zero() & !self.regs.flag_carry()),
             0x7C => self.jcc::<8>(self.regs.flag_sign() ^ self.regs.flag_overflow()),
             0x7D => self.jcc::<8>(self.regs.flag_sign() == self.regs.flag_overflow()),
-            0x7E => self
-                .jcc::<8>(self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow())),
+            0x7E => self.jcc::<8>(
+                self.regs.flag_zero() | (self.regs.flag_sign() ^ self.regs.flag_overflow()),
+            ),
             0x7F => self.jcc::<8>(!self.regs.flag_zero() & !self.regs.flag_sign()),
             0x80 => self.cmp_rm8_imm8(),
             0x81 => self.op_0x81(),

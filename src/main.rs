@@ -1,3 +1,5 @@
+#![allow(clippy::new_without_default)]
+
 use crate::byte_string::HeapByteString;
 use crate::emulated_gdi::EmulatedGdi;
 use crate::emulated_kernel::EmulatedKernel;
@@ -6,12 +8,14 @@ use crate::emulated_user::EmulatedUser;
 use crate::emulator::Emulator;
 use crate::emulator_error::EmulatorError;
 use crate::executable::{Executable, ExecutableFormatError};
+use crate::heap::Heap;
 use crate::memory::Memory;
 use crate::message_queue::MessageQueue;
 use crate::module::{DummyModule, GdiModule, KernelModule, KeyboardModule, Module, UserModule};
 use crate::object_environment::ObjectEnvironment;
 use crate::registers::Registers;
 use crate::screen::Screen;
+use crate::segment_bump_allocator::SegmentBumpAllocator;
 use crate::util::{
     bool_to_result, debug_print_null_terminated_string, expect_magic, u16_from_slice,
 };
@@ -19,10 +23,7 @@ use crate::window_manager::WindowManager;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::thread;
-use crate::heap::Heap;
-use crate::segment_bump_allocator::SegmentBumpAllocator;
 
-#[macro_use]
 extern crate num_derive;
 mod api_helpers;
 mod atom_table;
@@ -39,6 +40,7 @@ mod emulator_accessor;
 mod emulator_error;
 mod executable;
 mod handle_table;
+mod heap;
 mod memory;
 mod message_queue;
 mod mod_rm;
@@ -46,11 +48,10 @@ mod module;
 mod object_environment;
 mod registers;
 mod screen;
+mod segment_bump_allocator;
 mod two_d;
 mod util;
 mod window_manager;
-mod heap;
-mod segment_bump_allocator;
 
 struct MZResult {
     pub ne_header_offset: usize,
@@ -330,7 +331,10 @@ fn process_module_reference_table(
             String::from_utf8_lossy(module_name)
         );
 
-        let flat_address = (segment_bump_allocator.allocate(0x10_000).ok_or(ExecutableFormatError::Memory)? as u32) * 0x10;
+        let flat_address = (segment_bump_allocator
+            .allocate(0x10000)
+            .ok_or(ExecutableFormatError::Memory)? as u32)
+            * 0x10;
         if module_name == b"KERNEL" {
             module_reference_table
                 .modules
@@ -450,19 +454,27 @@ fn perform_relocations(
             match &relocation.relocation_type {
                 RelocationType::ImportOrdinal(import) => {
                     // Relocate kernel system call
-                    let module =
-                        module_reference_table.module(import.index_into_module_reference_table).map_err(|_| ExecutableFormatError::Memory)?;
-                    let segment_and_offset = module.base_module().procedure(
-                        memory,
-                        import.procedure_ordinal_number,
-                        module.argument_bytes_of_procedure(import.procedure_ordinal_number),
-                    ).map_err(|_| ExecutableFormatError::Memory)?;
+                    let module = module_reference_table
+                        .module(import.index_into_module_reference_table)
+                        .map_err(|_| ExecutableFormatError::Memory)?;
+                    let segment_and_offset = module
+                        .base_module()
+                        .procedure(
+                            memory,
+                            import.procedure_ordinal_number,
+                            module.argument_bytes_of_procedure(import.procedure_ordinal_number),
+                        )
+                        .map_err(|_| ExecutableFormatError::Memory)?;
 
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
                         if relocation.source_type == 3 {
-                            memory.write_u16(flat_address, segment_and_offset.offset).map_err(|_| ExecutableFormatError::Memory)?;
-                            memory.write_u16(flat_address + 2, segment_and_offset.segment).map_err(|_| ExecutableFormatError::Memory)?;
+                            memory
+                                .write_u16(flat_address, segment_and_offset.offset)
+                                .map_err(|_| ExecutableFormatError::Memory)?;
+                            memory
+                                .write_u16(flat_address + 2, segment_and_offset.segment)
+                                .map_err(|_| ExecutableFormatError::Memory)?;
                         } else {
                             // TODO
                             println!("other source type {}", relocation.source_type);
@@ -477,18 +489,28 @@ fn perform_relocations(
                         let entry = entry_table
                             .get(ordinal_index_into_entry_table)
                             .ok_or(ExecutableFormatError::Memory)?;
-                        (chosen_segments[(entry.segment_number - 1) as usize], entry.offset)
+                        (
+                            chosen_segments[(entry.segment_number - 1) as usize],
+                            entry.offset,
+                        )
                     } else {
-                        (chosen_segments[(internal_ref.segment_number - 1) as usize], internal_ref.parameter)
+                        (
+                            chosen_segments[(internal_ref.segment_number - 1) as usize],
+                            internal_ref.parameter,
+                        )
                     };
 
                     for &offset in &relocation.locations {
                         let flat_address = flat_address_offset + offset as u32;
 
                         if relocation.source_type == 2 {
-                            memory.write_u16(flat_address, segment).map_err(|_| ExecutableFormatError::Memory)?;
+                            memory
+                                .write_u16(flat_address, segment)
+                                .map_err(|_| ExecutableFormatError::Memory)?;
                         } else if relocation.source_type == 5 {
-                            memory.write_u16(flat_address, offset_within_segment).map_err(|_| ExecutableFormatError::Memory)?;
+                            memory
+                                .write_u16(flat_address, offset_within_segment)
+                                .map_err(|_| ExecutableFormatError::Memory)?;
                         } else {
                             // TODO: invalid?
                         }
@@ -685,7 +707,9 @@ fn process_file_ne(
             segment.logical_sector_offset as usize,
             segment.length_of_segment_in_file as usize,
         )?;
-        let segment_selector = segment_bump_allocator.allocate(segment.minimum_allocation_size as usize).ok_or(ExecutableFormatError::Memory)?;
+        let segment_selector = segment_bump_allocator
+            .allocate(segment.minimum_allocation_size as usize)
+            .ok_or(ExecutableFormatError::Memory)?;
         let flat_address = segment_selector as u32 * 0x10;
         memory
             .copy_from(segment_bytes, flat_address as usize)
@@ -694,18 +718,21 @@ fn process_file_ne(
     }
 
     for (segment, &selector) in segment_table.iter().zip(&chosen_segments) {
-        perform_relocations(&mut memory, selector as u32 * 0x10, &module_reference_table, &entry_table, segment, &chosen_segments)?;
+        perform_relocations(
+            &mut memory,
+            selector as u32 * 0x10,
+            &module_reference_table,
+            &entry_table,
+            segment,
+            &chosen_segments,
+        )?;
     }
 
     // Setup SP and heap pointer now that every offset and segment is known.
     let ds_segment_end = (segment_table[ds as usize - 1].minimum_allocation_size + 1) & !1;
     let ds_stack_end = ds_segment_end + stack_initial_size;
     let heap_size_left = 0xFFFEu32.saturating_sub(ds_stack_end);
-    let sp = if sp == 0 {
-        ds_stack_end as u16
-    } else {
-        sp
-    };
+    let sp = if sp == 0 { ds_stack_end as u16 } else { sp };
 
     let button_wnd_proc = module_reference_table
         .user_module_index
@@ -728,7 +755,12 @@ fn process_file_ne(
     let emulated_keyboard = EmulatedKeyboard::new();
     println!("{:?}", chosen_segments);
     let mut emulator = Emulator::new(
-        Registers::new(chosen_segments[ds as usize - 1], chosen_segments[cs as usize - 1], ip, sp),
+        Registers::new(
+            chosen_segments[ds as usize - 1],
+            chosen_segments[cs as usize - 1],
+            ip,
+            sp,
+        ),
         memory,
         emulated_kernel,
         emulated_user,

@@ -4,9 +4,7 @@ pub struct SegmentBumpAllocator {
 
 impl SegmentBumpAllocator {
     pub fn new() -> Self {
-        Self {
-            pointer: 0,
-        }
+        Self { pointer: 0 }
     }
 
     pub fn allocate(&mut self, size: usize) -> Option<u16> {

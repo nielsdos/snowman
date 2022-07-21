@@ -264,7 +264,12 @@ impl Registers {
         affect_cf: bool,
         overflow: bool,
     ) {
-        self.handle_arithmetic_result_u_generic::<8>(result as u16, result_did_carry, affect_cf, overflow)
+        self.handle_arithmetic_result_u_generic::<8>(
+            result as u16,
+            result_did_carry,
+            affect_cf,
+            overflow,
+        )
     }
 
     pub fn flag_zero(&self) -> bool {

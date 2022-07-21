@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use crate::handle_table::{GenericHandle, Handle, HandleTable};
+use crate::handle_table::{GenericHandle, HandleTable};
 
 pub struct Heap {
     max_size: u16,
@@ -25,10 +24,14 @@ impl Heap {
         }
     }
 
-    pub fn allocate(&mut self, is_fixed: bool, size: u16) -> Result<(u16, u16), HeapAllocationError> {
+    pub fn allocate(
+        &mut self,
+        is_fixed: bool,
+        size: u16,
+    ) -> Result<(u16, u16), HeapAllocationError> {
         // Ceil size to a multiple of 2
         let size = if size == u16::MAX {
-            return Err(HeapAllocationError::AllocationTooLarge)
+            return Err(HeapAllocationError::AllocationTooLarge);
         } else {
             (size + 1) & !1
         };
@@ -47,7 +50,8 @@ impl Heap {
                 // the handles. Any handle can be returned by the register method, so we map them
                 // to odd numbers by using N * 2 - 1. This works because handles are at least 1
                 // (so 1 is mapped to 1), and they have a reasonable limit of roughly 10K.
-                self.handle_to_pointer.register(allocation)
+                self.handle_to_pointer
+                    .register(allocation)
                     .ok_or(HeapAllocationError::OutOfMemory)
                     .map(|data| (data.as_u16() * 2 - 1, allocation))
             }

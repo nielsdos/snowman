@@ -55,7 +55,11 @@ struct SprintfMachine<'a> {
 }
 
 impl<'a> SprintfMachine<'a> {
-    pub fn new(accessor: EmulatorAccessor<'a>, format_string_ptr: Pointer, output_buffer_ptr: Pointer) -> Self {
+    pub fn new(
+        accessor: EmulatorAccessor<'a>,
+        format_string_ptr: Pointer,
+        output_buffer_ptr: Pointer,
+    ) -> Self {
         Self {
             accessor,
             current_format_address: format_string_ptr.0,
@@ -71,7 +75,10 @@ impl<'a> SprintfMachine<'a> {
     }
 
     pub fn write_character(&mut self, character: u8) -> Result<(), EmulatorError> {
-        let result = self.accessor.memory_mut().write_8(self.current_dest_address, character)?;
+        self
+            .accessor
+            .memory_mut()
+            .write_8(self.current_dest_address, character)?;
         self.characters_written += 1;
         self.current_dest_address += 1;
         Ok(())
@@ -93,11 +100,13 @@ impl<'a> SprintfMachine<'a> {
                 let character = self.read_character()?;
                 if character == b'c' {
                     let character = self.accessor.word_argument(current_arg_offset)? as u8;
-                    self.write_character(character);
+                    self.write_character(character)?;
                     current_arg_offset += 1;
                 } else if character == b's' {
                     let str_ptr = self.accessor.pointer_argument(current_arg_offset)?;
-                    let len = self.accessor.copy_string(str_ptr, self.current_dest_address)?;
+                    let len = self
+                        .accessor
+                        .copy_string(str_ptr, self.current_dest_address)?;
                     self.characters_written += len;
                     self.current_dest_address += len as u32;
                     current_arg_offset += 2;
@@ -254,8 +263,6 @@ impl<'a> EmulatedUser<'a> {
                     (0xD000 << 4) | 0,
                 )?;
 
-
-
                 return Ok(ReturnValue::DelayedU16(window_handle.as_u16()));
             }
         }
@@ -333,8 +340,15 @@ impl<'a> EmulatedUser<'a> {
                     self.recursive_window_paint(accessor, objects, *child);
                 }
                 // TODO: only do this if update region is non-empty
-                self.call_wndproc_sync(accessor, user_window.proc, h_wnd, MessageType::Paint.into(), 0, 0)
-                    .is_ok()
+                self.call_wndproc_sync(
+                    accessor,
+                    user_window.proc,
+                    h_wnd,
+                    MessageType::Paint.into(),
+                    0,
+                    0,
+                )
+                .is_ok()
             }
             _ => false,
         }
@@ -450,13 +464,23 @@ impl<'a> EmulatedUser<'a> {
         // TODO: implement min & max filters
         let return_value = if let Some(message) = self.message_queue.receive(h_wnd) {
             let message_type = message.message;
-            accessor.memory_mut().write_u16(msg.0, message.h_wnd.as_u16())?;
-            accessor.memory_mut().write_u16(msg.0 + 2, message_type.into())?;
-            accessor.memory_mut().write_u16(msg.0 + 4, message.w_param)?;
+            accessor
+                .memory_mut()
+                .write_u16(msg.0, message.h_wnd.as_u16())?;
+            accessor
+                .memory_mut()
+                .write_u16(msg.0 + 2, message_type.into())?;
+            accessor
+                .memory_mut()
+                .write_u16(msg.0 + 4, message.w_param)?;
             accessor.memory_mut().write_32(msg.0 + 6, message.l_param)?;
             accessor.memory_mut().write_32(msg.0 + 10, message.time)?;
-            accessor.memory_mut().write_i16(msg.0 + 14, message.point.x)?;
-            accessor.memory_mut().write_i16(msg.0 + 16, message.point.y)?;
+            accessor
+                .memory_mut()
+                .write_i16(msg.0 + 14, message.point.x)?;
+            accessor
+                .memory_mut()
+                .write_i16(msg.0 + 16, message.point.y)?;
 
             if message_type == MessageType::Quit {
                 0
@@ -475,18 +499,26 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn dispatch_message(&self, mut accessor: EmulatorAccessor, msg: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn dispatch_message(
+        &self,
+        mut accessor: EmulatorAccessor,
+        msg: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         let h_wnd: Handle = accessor.memory().read_u16(msg.0)?.into();
         let message_type = accessor.memory().read_u16(msg.0 + 2)?;
         let w_param = accessor.memory().read_u16(msg.0 + 4)?;
         let l_param = accessor.memory().read_32(msg.0 + 6)?;
 
-        match self.read_objects().user.get(h_wnd) {
-            Some(UserObject::Window(user_window)) => {
-                self.call_wndproc_sync(&mut accessor, user_window.proc, h_wnd, message_type, w_param, l_param)?;
-            }
-            _ => {},
-        };
+        if let Some(UserObject::Window(user_window)) = self.read_objects().user.get(h_wnd) {
+            self.call_wndproc_sync(
+                &mut accessor,
+                user_window.proc,
+                h_wnd,
+                message_type,
+                w_param,
+                l_param,
+            )?;
+        }
 
         // Return value will be set by the wnd proc
         Ok(ReturnValue::None)
@@ -516,7 +548,9 @@ impl<'a> EmulatedUser<'a> {
             accessor
                 .memory_mut()
                 .copy_from(&string[0..amount_of_bytes_to_copy], buffer.0 as usize)?;
-            accessor.memory_mut().write_8(buffer.0 + (amount_of_bytes_to_copy as u32), 0)?;
+            accessor
+                .memory_mut()
+                .write_8(buffer.0 + (amount_of_bytes_to_copy as u32), 0)?;
 
             debug_print_null_terminated_string(&accessor, buffer.0);
             // String lengths from the resource table will fit in 16 bits, because their length
@@ -618,7 +652,9 @@ impl<'a> EmulatedUser<'a> {
             // Paint button
             if let Some(paint) = self.begin_paint(h_wnd) {
                 let objects = self.read_objects();
-                let containing_rect = self.get_client_rect(h_wnd, &objects).unwrap_or(Rect::zero());
+                let containing_rect = self
+                    .get_client_rect(h_wnd, &objects)
+                    .unwrap_or_else(Rect::zero);
                 objects.with_paint_bitmap_for(paint.hdc, &|mut bitmap| {
                     // Black rounded frame
                     bitmap.draw_horizontal_line(
@@ -711,7 +747,11 @@ impl<'a> EmulatedUser<'a> {
         Ok(ReturnValue::U16(0))
     }
 
-    fn get_client_rect(&self, h_wnd: Handle, objects: &RwLockReadGuard<ObjectEnvironment>) -> Option<Rect> {
+    fn get_client_rect(
+        &self,
+        h_wnd: Handle,
+        objects: &RwLockReadGuard<ObjectEnvironment>,
+    ) -> Option<Rect> {
         objects
             .read_window_manager()
             .client_rect_of(WindowIdentifier {
@@ -838,9 +878,7 @@ impl<'a> EmulatedUser<'a> {
         println!("FILL RECT {:?}", rect);
         let objects = self.read_objects();
         if let Some(GdiObject::SolidBrush(color)) = objects.gdi.get(h_brush) {
-            objects.with_paint_bitmap_for(h_dc, &|mut bitmap| {
-                bitmap.fill_rectangle(rect, *color)
-            });
+            objects.with_paint_bitmap_for(h_dc, &|mut bitmap| bitmap.fill_rectangle(rect, *color));
             Ok(ReturnValue::U16(1))
         } else {
             Ok(ReturnValue::U16(0))
@@ -895,7 +933,12 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn internal_get_client_rect(&self, mut accessor: EmulatorAccessor, h_wnd: Handle, rect_ptr: Pointer) -> Result<ReturnValue, EmulatorError> {
+    fn internal_get_client_rect(
+        &self,
+        mut accessor: EmulatorAccessor,
+        h_wnd: Handle,
+        rect_ptr: Pointer,
+    ) -> Result<ReturnValue, EmulatorError> {
         let rect = {
             let objects = self.read_objects();
             self.get_client_rect(h_wnd, &objects)
@@ -984,16 +1027,19 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn set_cursor(
-        &self,
-        _h_cursor: Handle
-    ) -> Result<ReturnValue, EmulatorError> {
+    fn set_cursor(&self, _h_cursor: Handle) -> Result<ReturnValue, EmulatorError> {
         // TODO
         Ok(ReturnValue::U16(0))
     }
 
     #[api_function]
-    fn inflate_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, dx: i16, dy: i16) -> Result<ReturnValue, EmulatorError> {
+    fn inflate_rect(
+        &self,
+        mut accessor: EmulatorAccessor,
+        rect_ptr: Pointer,
+        dx: i16,
+        dy: i16,
+    ) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect_ptr.0)?.inflate(dx, dy);
         println!("RESULTING RECT {:?}", rect);
         accessor.write_rect(rect_ptr.0, &rect)?;
@@ -1001,15 +1047,35 @@ impl<'a> EmulatedUser<'a> {
     }
 
     #[api_function]
-    fn set_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, left: i16, top: i16, right: i16, bottom: i16) -> Result<ReturnValue, EmulatorError> {
-        accessor.write_rect(rect_ptr.0, &Rect {
-            left, top, right, bottom
-        })?;
+    fn set_rect(
+        &self,
+        mut accessor: EmulatorAccessor,
+        rect_ptr: Pointer,
+        left: i16,
+        top: i16,
+        right: i16,
+        bottom: i16,
+    ) -> Result<ReturnValue, EmulatorError> {
+        accessor.write_rect(
+            rect_ptr.0,
+            &Rect {
+                left,
+                top,
+                right,
+                bottom,
+            },
+        )?;
         Ok(ReturnValue::U16(1))
     }
 
     #[api_function]
-    fn offset_rect(&self, mut accessor: EmulatorAccessor, rect_ptr: Pointer, dx: i16, dy: i16) -> Result<ReturnValue, EmulatorError> {
+    fn offset_rect(
+        &self,
+        mut accessor: EmulatorAccessor,
+        rect_ptr: Pointer,
+        dx: i16,
+        dy: i16,
+    ) -> Result<ReturnValue, EmulatorError> {
         let rect = accessor.read_rect(rect_ptr.0)?.offset(dx, dy);
         println!("RESULTING RECT {:?} {} {}", rect, dx, dy);
         accessor.write_rect(rect_ptr.0, &rect)?;

@@ -1,13 +1,13 @@
 use crate::api_helpers::{Pointer, ReturnValue};
+use crate::bitmap::Color;
 use crate::constants::DeviceCapRequest;
 use crate::emulator_accessor::EmulatorAccessor;
 use crate::handle_table::{GenericHandle, Handle};
 use crate::object_environment::{GdiObject, GdiSelectionObjectType, Pen};
+use crate::two_d::Point;
 use crate::{debug, EmulatorError, ObjectEnvironment};
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use syscall::api_function;
-use crate::bitmap::Color;
-use crate::two_d::Point;
 
 pub struct EmulatedGdi<'a> {
     objects: &'a RwLock<ObjectEnvironment<'a>>,
@@ -151,7 +151,7 @@ impl<'a> EmulatedGdi<'a> {
     fn set_bk_mode(&self, hdc: Handle, mode: u16) -> Result<ReturnValue, EmulatorError> {
         println!("SET BK MODE: {:?} {}", hdc, mode);
         match self.read_objects().gdi.get(hdc) {
-            Some(GdiObject::DC(_)) => {},
+            Some(GdiObject::DC(_)) => {}
             _ => {
                 println!("Not a DC???");
             }
@@ -177,7 +177,14 @@ impl<'a> EmulatedGdi<'a> {
     }
 
     #[api_function]
-    fn rectangle(&self, hdc: Handle, left: i16, top: i16, right: i16, bottom: i16) -> Result<ReturnValue, EmulatorError> {
+    fn rectangle(
+        &self,
+        hdc: Handle,
+        left: i16,
+        top: i16,
+        right: i16,
+        bottom: i16,
+    ) -> Result<ReturnValue, EmulatorError> {
         println!("RECTANGLE: {:?} {} {} {} {}", hdc, left, top, right, bottom);
         // TODO
         Ok(ReturnValue::U16(1))
@@ -190,19 +197,23 @@ impl<'a> EmulatedGdi<'a> {
                 dc.move_to(x, y);
                 Ok(ReturnValue::U16(1))
             }
-            _ => Ok(ReturnValue::U16(0))
+            _ => Ok(ReturnValue::U16(0)),
         }
     }
 
     #[api_function]
     fn line_to(&self, hdc: Handle, x: i16, y: i16) -> Result<ReturnValue, EmulatorError> {
-        self.read_objects().with_paint_bitmap_for(hdc, &|mut bitmap| {
-            // TODO: pen & fallibility
-            bitmap.line_to(Point::new(x, y), &Pen {
-                width: 1,
-                color: Color(0, 0, 0),
+        self.read_objects()
+            .with_paint_bitmap_for(hdc, &|mut bitmap| {
+                // TODO: pen & fallibility
+                bitmap.line_to(
+                    Point::new(x, y),
+                    &Pen {
+                        width: 1,
+                        color: Color(0, 0, 0),
+                    },
+                );
             });
-        });
         Ok(ReturnValue::U16(1))
     }
 
