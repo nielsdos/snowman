@@ -116,3 +116,7 @@ pub fn debug_print_null_terminated_string(accessor: &EmulatorAccessor, mut addre
     }
     println!("\" [length {}]", length);
 }
+
+pub fn encode_u16_u16_to_u32(low: u16, high: u16) -> u32 {
+    ((high as u32) << 16) | (low as u32)
+}
